@@ -4,7 +4,7 @@ import React from 'react';
 import { AppProvider } from '@/context/AppContext';
 import { Layout } from '@/components/Layout';
 import { TaskView } from '@/components/TaskView';
-import { QuickAddModal } from '@/components/QuickAddModal';
+import { AddTaskModal } from '@/components/AddTaskModal';
 import { TaskDrawer } from '@/components/TaskDrawer';
 import { TemplateModal } from '@/components/TemplateModal';
 import { KarmaModal } from '@/components/KarmaModal';
@@ -17,7 +17,7 @@ export default function Home() {
       <Layout>
         <TaskView />
         <TaskDrawer />
-        <QuickAddModal />
+        <AddTaskModal />
         <TemplateModal />
         <KarmaModal />
         <AuthModal />

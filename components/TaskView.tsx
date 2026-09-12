@@ -32,7 +32,7 @@ export function TaskView() {
     viewMode,
     setViewMode,
     currentProject,
-    setIsQuickAddOpen,
+    openAddTaskModal,
     searchQuery,
     setSearchQuery,
     filterPriority,
@@ -239,7 +239,10 @@ export function TaskView() {
           {/* Quick Add Button */}
           <button
             type="button"
-            onClick={() => setIsQuickAddOpen(true)}
+            onClick={() => openAddTaskModal({
+              project_id: currentProject ? currentProject.id : null,
+              due_date: activeView === 'today' ? todayStr : null
+            })}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-zinc-950 text-xs font-bold transition-all shadow-[0_0_16px_rgba(0,240,255,0.4)] hover:shadow-[0_0_24px_rgba(0,240,255,0.6)]"
           >
             <Plus className="w-4 h-4 stroke-[2.5]" />
@@ -355,7 +358,10 @@ export function TaskView() {
               </p>
               <button
                 type="button"
-                onClick={() => setIsQuickAddOpen(true)}
+                onClick={() => openAddTaskModal({
+                  project_id: currentProject ? currentProject.id : null,
+                  due_date: activeView === 'today' ? todayStr : null
+                })}
                 className="mt-5 px-4 py-2 bg-white/5 hover:bg-white/10 text-cyan-300 border border-cyan-500/30 rounded-xl text-xs font-semibold transition-colors"
               >
                 Plan Next Priority (Cmd + K)
@@ -460,7 +466,10 @@ export function TaskView() {
               </p>
               <button
                 type="button"
-                onClick={() => setIsQuickAddOpen(true)}
+                onClick={() => openAddTaskModal({
+                  project_id: currentProject ? currentProject.id : null,
+                  due_date: activeView === 'today' ? todayStr : null
+                })}
                 className="mt-4 px-3.5 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/30 rounded-xl text-xs font-medium transition-colors"
               >
                 Add First Task (Cmd + K)

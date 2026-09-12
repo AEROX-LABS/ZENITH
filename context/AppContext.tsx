@@ -17,7 +17,14 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { formatDate } from '@/lib/parser';
 import { TEMPLATES } from '@/lib/templates';
 
-interface AppContextType {
+export interface ToastMessage {
+  id: string;
+  type: 'success' | 'error' | 'info';
+  message: string;
+}
+
+export interface AppContextType {
+  // Collections
   tasks: Task[];
   projects: Project[];
   sections: Section[];
@@ -43,9 +50,11 @@ interface AppContextType {
   filterLabel: string | 'all';
   setFilterLabel: (label: string | 'all') => void;
 
-  // Modals
+  // Modals & Triggers
   isQuickAddOpen: boolean;
   setIsQuickAddOpen: (open: boolean) => void;
+  openAddTaskModal: (initialData?: Partial<Task>) => void;
+  addTaskInitialData: Partial<Task> | null;
   isTemplateModalOpen: boolean;
   setIsTemplateModalOpen: (open: boolean) => void;
   isKarmaModalOpen: boolean;
@@ -57,8 +66,13 @@ interface AppContextType {
   openTutorial: () => void;
   completeTutorial: () => void;
 
+  // Toast Notifications
+  toasts: ToastMessage[];
+  showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
+  dismissToast: (id: string) => void;
+
   // CRUD Operations
-  addTask: (task: Partial<Task>) => Task;
+  addTask: (task: Partial<Task>) => Promise<Task>;
   toggleTask: (taskId: string) => void;
   deleteTask: (taskId: string) => void;
   updateTask: (taskId: string, updates: Partial<Task>) => void;
@@ -102,19 +116,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Modals
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [addTaskInitialData, setAddTaskInitialData] = useState<Partial<Task> | null>(null);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [isKarmaModalOpen, setIsKarmaModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [isTutorialOpen, setIsTutorialOpen] = useState(false);
-
-  // Auto-trigger on first load if not previously completed
-  useEffect(() => {
+  const [isTutorialOpen, setIsTutorialOpen] = useState(() => {
     if (typeof window !== 'undefined') {
-      const completed = localStorage.getItem('aerox_tutorial_completed');
-      if (!completed) {
-        setIsTutorialOpen(true);
-      }
+      return !localStorage.getItem('aerox_tutorial_completed');
     }
+    return false;
+  });
+
+  // Toast Notifications
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    const id = `toast_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+    setToasts(prev => [...prev, { id, message, type }]);
+  }, []);
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  }, []);
+
+  const openAddTaskModal = useCallback((initialData?: Partial<Task>) => {
+    setAddTaskInitialData(initialData || null);
+    setIsQuickAddOpen(true);
   }, []);
 
   const openTutorial = useCallback(() => {
@@ -260,14 +287,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Actions
-  const addTask = useCallback((taskData: Partial<Task>): Task => {
+  const addTask = useCallback(async (taskData: Partial<Task>): Promise<Task> => {
     const newTask: Task = {
       id: `task_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
       project_id: taskData.project_id || (activeView.startsWith('proj_') ? activeView : null),
       title: taskData.title?.trim() || 'Untitled Task',
       description: taskData.description || '',
       priority: taskData.priority || 'p4',
-      completed: false,
+      completed: taskData.completed ?? false,
       due_date: taskData.due_date || (activeView === 'today' ? formatDate(new Date()) : null),
       deadline: taskData.deadline || null,
       parent_id: taskData.parent_id || null,
@@ -280,11 +307,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       created_at: new Date().toISOString(),
     };
 
+    // 1. Optimistic Update (zero latency in UI)
     setTasks(prev => [newTask, ...prev]);
 
-    // Background push to Supabase if online
+    // 2. Persist to Supabase if online/configured
     if (isSupabaseConfigured) {
-      supabase.from('tasks').insert([newTask]).then();
+      try {
+        const { error } = await supabase.from('tasks').insert([newTask]);
+        if (error) {
+          // Revert optimistic update
+          setTasks(prev => prev.filter(t => t.id !== newTask.id));
+          throw new Error(error.message || 'Failed to save task to database.');
+        }
+      } catch (err: unknown) {
+        setTasks(prev => prev.filter(t => t.id !== newTask.id));
+        const message = err instanceof Error ? err.message : 'Database insert failed.';
+        throw new Error(message);
+      }
     }
 
     return newTask;
@@ -676,6 +715,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setFilterLabel,
         isQuickAddOpen,
         setIsQuickAddOpen,
+        openAddTaskModal,
+        addTaskInitialData,
         isTemplateModalOpen,
         setIsTemplateModalOpen,
         isKarmaModalOpen,
@@ -686,6 +727,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setIsTutorialOpen,
         openTutorial,
         completeTutorial,
+        toasts,
+        showToast,
+        dismissToast,
         addTask,
         toggleTask,
         deleteTask,

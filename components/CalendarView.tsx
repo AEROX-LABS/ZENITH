@@ -21,7 +21,7 @@ const PRIORITY_COLORS: Record<Priority, string> = {
 };
 
 export function CalendarView({ tasks }: { tasks: Task[] }) {
-  const { setSelectedTaskId, addTask, currentProject } = useApp();
+  const { setSelectedTaskId, openAddTaskModal, currentProject } = useApp();
   const [currentDate, setCurrentDate] = useState(new Date());
 
   const year = currentDate.getFullYear();
@@ -94,14 +94,10 @@ export function CalendarView({ tasks }: { tasks: Task[] }) {
   }
 
   const handleQuickAddForDate = (dateStr: string) => {
-    const title = window.prompt(`Add new task scheduled for ${dateStr}:`);
-    if (title && title.trim()) {
-      addTask({
-        title: title.trim(),
-        due_date: dateStr,
-        project_id: currentProject ? currentProject.id : null,
-      });
-    }
+    openAddTaskModal({
+      due_date: dateStr,
+      project_id: currentProject ? currentProject.id : null,
+    });
   };
 
   return (

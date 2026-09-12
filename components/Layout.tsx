@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { formatDate } from '@/lib/parser';
+import { ToastContainer } from '@/components/Toast';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const {
@@ -29,7 +30,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     karma,
     user,
     setUser,
-    setIsQuickAddOpen,
+    openAddTaskModal,
     setIsTemplateModalOpen,
     setIsKarmaModalOpen,
     setIsAuthModalOpen,
@@ -64,6 +65,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#09090b] text-zinc-100 select-none">
+      {/* Real-time Global Toast Notifications */}
+      <ToastContainer />
+
       {/* ========================================================================= */}
       {/* DESKTOP OBSIDIAN SIDEBAR (md+)                                            */}
       {/* ========================================================================= */}
@@ -88,7 +92,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <div className="p-3">
           <button
             type="button"
-            onClick={() => setIsQuickAddOpen(true)}
+            onClick={() => openAddTaskModal()}
             className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-white/5 hover:bg-cyan-500/10 text-zinc-200 hover:text-cyan-300 border border-white/10 hover:border-cyan-500/40 text-xs font-semibold transition-all group shadow-sm"
           >
             <div className="flex items-center gap-2">
@@ -445,7 +449,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         {/* ========================================================================= */}
         <button
           type="button"
-          onClick={() => setIsQuickAddOpen(true)}
+          onClick={() => openAddTaskModal()}
           className="md:hidden fixed bottom-20 right-5 z-40 w-14 h-14 rounded-full bg-[#00f0ff] hover:bg-cyan-300 text-zinc-950 flex items-center justify-center shadow-[0_0_24px_rgba(0,240,255,0.7)] active:scale-95 transition-all"
           aria-label="Quick Add Task"
         >
