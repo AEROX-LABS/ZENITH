@@ -396,7 +396,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Resolve workspace_id: passed > active workspace > first workspace
     const effectiveWorkspaceId = 
       taskData.workspace_id || 
-      (workspaces.some(w => w.id === activeView) ? activeView : (workspaces[0]?.id || 'ws_personal'));
+      (workspaces.some(w => w.id === activeView) ? activeView : (workspaces[0]?.id || 'e0f214e2-9366-4e50-93cb-56272551ec41'));
 
     const taskId = crypto.randomUUID();
 
@@ -423,24 +423,53 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // 1. Optimistic Update (zero latency in UI)
     setTasks(prev => [newTask, ...prev]);
 
-    // 2. Persist to Supabase with sanitized payload
+    // 2. Persist to Supabase with strictly sanitized payload
     if (isSupabaseConfigured) {
       try {
+        // Strictly sanitize the insert object so it only includes valid schema columns:
+        // id, title, description, priority, completed, due_date, project_id, workspace_id, assignee_id, created_at
+        // and strictly NEVER send 'comments' to the tasks table
         const payload: Record<string, any> = {
           id: newTask.id,
           title: newTask.title,
-          description: newTask.description || null,
-          priority: newTask.priority,
-          completed: newTask.completed,
-          due_date: newTask.due_date,
-          workspace_id: newTask.workspace_id,
-          assignee_id: newTask.assignee_id,
+          priority: newTask.priority || 'p4',
+          completed: newTask.completed ?? false,
           created_at: newTask.created_at,
         };
 
-        if (newTask.project_id && projects.some(p => p.id === newTask.project_id)) {
+        if (newTask.description) {
+          payload.description = newTask.description;
+        }
+
+        if (newTask.due_date) {
+          payload.due_date = newTask.due_date;
+        }
+
+        // Workspace ID if valid UUID
+        if (newTask.workspace_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(newTask.workspace_id)) {
+          payload.workspace_id = newTask.workspace_id;
+        }
+
+        // Project ID if valid UUID
+        if (newTask.project_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(newTask.project_id)) {
           payload.project_id = newTask.project_id;
         }
+
+        // Assignee ID if valid UUID
+        if (newTask.assignee_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(newTask.assignee_id)) {
+          payload.assignee_id = newTask.assignee_id;
+        }
+
+        // Explicitly remove 'comments' and non-schema keys
+        delete (payload as any).comments;
+        delete (payload as any).details;
+        delete (payload as any).is_completed;
+        delete (payload as any).status;
+        delete (payload as any).deadline;
+        delete (payload as any).parent_id;
+        delete (payload as any).section_id;
+        delete (payload as any).order;
+        delete (payload as any).recurrence;
 
         const { error } = await supabase.from('tasks').insert([payload]);
         if (error) {
@@ -584,7 +613,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setTasks(prev => [...prev, subtask]);
 
     if (isSupabaseConfigured) {
-      supabase.from('tasks').insert([subtask]).then();
+      const subtaskPayload: Record<string, any> = {
+        id: subtask.id,
+        title: subtask.title,
+        priority: subtask.priority,
+        completed: false,
+        created_at: subtask.created_at,
+      };
+      if (subtask.due_date) subtaskPayload.due_date = subtask.due_date;
+      supabase.from('tasks').insert([subtaskPayload]).then();
     }
 
     return subtask;
@@ -608,9 +645,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setTasks(prev => prev.map(task => {
       if (task.id === taskId) {
         const comments = [...(task.comments || []), newComment];
-        if (isSupabaseConfigured) {
-          supabase.from('tasks').update({ comments }).eq('id', taskId).then();
-        }
         return { ...task, comments };
       }
       return task;
@@ -787,7 +821,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (isSupabaseConfigured) {
       supabase.from('projects').insert([newProject]).then();
       supabase.from('sections').insert(newSections).then();
-      supabase.from('tasks').insert(newTasks).then();
+      const sanitizedTemplateTasks = newTasks.map(t => {
+        const p: Record<string, any> = {
+          id: t.id,
+          title: t.title,
+          priority: t.priority,
+          completed: false,
+          created_at: t.created_at,
+        };
+        if (t.description) p.description = t.description;
+        if (t.due_date) p.due_date = t.due_date;
+        return p;
+      });
+      supabase.from('tasks').insert(sanitizedTemplateTasks).then();
     }
   }, [fireConfetti, setActiveView]);
 
