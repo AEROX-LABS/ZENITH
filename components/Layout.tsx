@@ -15,11 +15,15 @@ import {
   Folder,
   Command,
   ChevronRight,
-  HelpCircle
+  HelpCircle,
+  Layers,
+  User,
+  Users
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { formatDate } from '@/lib/parser';
 import { ToastContainer } from '@/components/Toast';
+import { CreateWorkspaceModal } from '@/components/CreateWorkspaceModal';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const {
@@ -30,6 +34,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
     karma,
     user,
     setUser,
+    workspaces,
+    setIsCreateWorkspaceOpen,
     openAddTaskModal,
     setIsTemplateModalOpen,
     setIsKarmaModalOpen,
@@ -185,6 +191,75 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <span>Completed Archive</span>
               </div>
             </button>
+          </div>
+
+          {/* Workspaces / Contexts Section */}
+          <div>
+            <div className="flex items-center justify-between px-2 mb-2">
+              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider font-mono flex items-center gap-1.5">
+                <Layers className="w-3 h-3 text-cyan-400" />
+                <span>Workspaces ({workspaces.length})</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsCreateWorkspaceOpen(true)}
+                className="p-1 rounded text-zinc-400 hover:text-cyan-400 hover:bg-white/5 transition-colors"
+                title="Create Workspace"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="space-y-1">
+              {workspaces.map(ws => {
+                const wsTaskCount = tasks.filter(t => !t.parent_id && !t.completed && t.workspace_id === ws.id).length;
+                const isActive = activeView === ws.id;
+
+                return (
+                  <button
+                    key={ws.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveView(ws.id);
+                      if (typeof window !== 'undefined') {
+                        window.history.pushState(null, '', `/workspace/${ws.id}`);
+                      }
+                    }}
+                    className={`w-full group/ws flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-all ${
+                      isActive
+                        ? 'bg-[#181924] text-zinc-100 border border-white/15 font-semibold shadow-[0_0_12px_rgba(0,0,0,0.5)]'
+                        : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5 border border-transparent'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full flex-shrink-0 transition-transform group-hover/ws:scale-125"
+                        style={{ 
+                          backgroundColor: ws.color, 
+                          boxShadow: `0 0 8px ${ws.color}80` 
+                        }}
+                      />
+                      <span className="truncate">{ws.name}</span>
+                      <span className="text-[9px] px-1 py-0.2 rounded font-mono text-zinc-500 bg-white/5 flex items-center gap-0.5">
+                        {ws.type === 'group' ? (
+                          <Users className="w-2.5 h-2.5 text-purple-400" />
+                        ) : (
+                          <User className="w-2.5 h-2.5 text-cyan-400" />
+                        )}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      {wsTaskCount > 0 && (
+                        <span className="text-[10px] font-mono text-zinc-500">
+                          {wsTaskCount}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Project Tree Section */}
@@ -518,6 +593,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </button>
         </nav>
       </div>
+
+      {/* Dynamic Create Workspace Dialog */}
+      <CreateWorkspaceModal />
     </div>
   );
 }

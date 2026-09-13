@@ -13,7 +13,12 @@ import {
   CheckSquare, 
   Loader2, 
   AlertCircle,
-  Plus
+  Plus,
+  ChevronDown,
+  Check,
+  Layers,
+  User,
+  Users
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { parseTaskInput, formatDate } from '@/lib/parser';
@@ -55,6 +60,9 @@ function AddTaskModalDialog() {
     setIsQuickAddOpen, 
     addTask, 
     projects, 
+    workspaces,
+    currentWorkspace,
+    profiles,
     activeView, 
     addTaskInitialData,
     showToast 
@@ -70,14 +78,23 @@ function AddTaskModalDialog() {
     return '';
   });
   const [deadline, setDeadline] = useState(() => addTaskInitialData?.deadline || '');
+  const [workspaceId, setWorkspaceId] = useState<string>(() => {
+    if (addTaskInitialData?.workspace_id) return addTaskInitialData.workspace_id;
+    if (currentWorkspace) return currentWorkspace.id;
+    return workspaces[0]?.id || '';
+  });
   const [projectId, setProjectId] = useState<string | null>(() => {
     if (addTaskInitialData?.project_id !== undefined) return addTaskInitialData.project_id;
     if (activeView.startsWith('proj_')) return activeView;
     return null;
   });
+  const [assigneeId, setAssigneeId] = useState<string | null>(() => addTaskInitialData?.assignee_id || null);
   const [labels, setLabels] = useState<string[]>(() => addTaskInitialData?.labels || []);
   const [newTagInput, setNewTagInput] = useState('');
   const [showTagInput, setShowTagInput] = useState(false);
+  const [isWorkspaceDropdownOpen, setIsWorkspaceDropdownOpen] = useState(false);
+  const [isProjectDropdownOpen, setIsProjectDropdownOpen] = useState(false);
+  const [isAssigneeDropdownOpen, setIsAssigneeDropdownOpen] = useState(false);
 
   // UI / Mutation State
   const [loading, setLoading] = useState(false);
@@ -181,6 +198,9 @@ function AddTaskModalDialog() {
     setLoading(true);
     setMutationError(null);
 
+    const selectedWorkspace = workspaces.find(w => w.id === workspaceId) || workspaces[0];
+    const isGroup = selectedWorkspace?.type === 'group';
+
     try {
       await addTask({
         title: finalTitle,
@@ -188,7 +208,9 @@ function AddTaskModalDialog() {
         priority,
         due_date: dueDate || null,
         deadline: deadline.trim() || null,
+        workspace_id: workspaceId || selectedWorkspace?.id,
         project_id: projectId,
+        assignee_id: isGroup ? assigneeId : null,
         section_id: addTaskInitialData?.section_id || null,
         labels,
       });
@@ -204,7 +226,19 @@ function AddTaskModalDialog() {
     }
   };
 
+  const selectedWorkspace = workspaces.find(w => w.id === workspaceId) || workspaces[0];
+  const isGroupWorkspace = selectedWorkspace?.type === 'group';
   const selectedProject = projects.find(p => p.id === projectId);
+  const selectedAssignee = profiles.find(p => p.id === assigneeId);
+
+  const handleSelectWorkspace = (wsId: string) => {
+    setWorkspaceId(wsId);
+    setIsWorkspaceDropdownOpen(false);
+    const ws = workspaces.find(w => w.id === wsId);
+    if (ws?.type !== 'group') {
+      setAssigneeId(null);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
@@ -415,30 +449,299 @@ function AddTaskModalDialog() {
             </div>
           </div>
 
-          {/* Row: Project Selector & Hard Deadline */}
+          {/* Row: Workspace Selector & Project Selector */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-            {/* Project Picker */}
-            <div className="space-y-1.5">
-              <label htmlFor="task-project-select" className="text-xs font-semibold text-zinc-400 flex items-center gap-1.5">
+            {/* Custom Immersive Workspace Dropdown */}
+            <div className="relative space-y-1.5">
+              <label className="text-xs font-semibold text-zinc-400 flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-zinc-500" />
+                <span>Workspace</span>
+                <span className="text-[#ff0055]">*</span>
+              </label>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsWorkspaceDropdownOpen(prev => !prev);
+                  setIsProjectDropdownOpen(false);
+                  setIsAssigneeDropdownOpen(false);
+                }}
+                disabled={loading}
+                className="w-full flex items-center justify-between bg-black/50 hover:bg-black/70 border border-white/10 hover:border-cyan-500/40 focus:border-cyan-400 rounded-xl px-3.5 py-2 text-xs text-zinc-200 transition-all cursor-pointer"
+                aria-haspopup="listbox"
+                aria-expanded={isWorkspaceDropdownOpen}
+              >
+                <div className="flex items-center gap-2 truncate">
+                  {selectedWorkspace ? (
+                    <>
+                      <span 
+                        className="w-2.5 h-2.5 rounded-full flex-shrink-0 shadow-[0_0_8px_currentColor]" 
+                        style={{ backgroundColor: selectedWorkspace.color, color: selectedWorkspace.color }}
+                      />
+                      <span className="truncate font-medium">{selectedWorkspace.name}</span>
+                      <span className="text-[10px] font-mono text-zinc-500 px-1.5 py-0.2 rounded bg-white/5">
+                        {selectedWorkspace.type === 'group' ? 'Group' : 'Personal'}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-zinc-500">Select Workspace...</span>
+                  )}
+                </div>
+                <ChevronDown className={`w-3.5 h-3.5 text-zinc-500 transition-transform duration-150 ${isWorkspaceDropdownOpen ? 'rotate-180 text-cyan-400' : ''}`} />
+              </button>
+
+              {/* Workspace Dropdown Menu */}
+              {isWorkspaceDropdownOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-30 cursor-default" 
+                    onClick={() => setIsWorkspaceDropdownOpen(false)} 
+                  />
+                  <div className="absolute left-0 right-0 top-full mt-1.5 z-40 bg-[#0c0d12]/95 border border-cyan-500/40 rounded-xl shadow-[0_0_30px_rgba(0,0,0,0.9),0_0_15px_rgba(0,240,255,0.15)] backdrop-blur-xl p-1.5 space-y-1 max-h-48 overflow-y-auto animate-in fade-in zoom-in-95 duration-100">
+                    {workspaces.map((ws) => (
+                      <button
+                        key={ws.id}
+                        type="button"
+                        onClick={() => handleSelectWorkspace(ws.id)}
+                        className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
+                          workspaceId === ws.id
+                            ? 'bg-cyan-950/40 text-cyan-300 border border-cyan-500/30 font-medium'
+                            : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/5'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <span 
+                            className="w-2 h-2 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: ws.color }}
+                          />
+                          <span className="truncate">{ws.name}</span>
+                          <span className="text-[9px] font-mono text-zinc-500 px-1 py-0.2 rounded bg-white/5">
+                            {ws.type === 'group' ? 'Group' : 'Personal'}
+                          </span>
+                        </div>
+                        {workspaceId === ws.id && <Check className="w-3 h-3 text-cyan-400 flex-shrink-0" />}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Custom Immersive Project Dropdown */}
+            <div className="relative space-y-1.5">
+              <label className="text-xs font-semibold text-zinc-400 flex items-center gap-1.5">
                 <Folder className="w-3.5 h-3.5 text-zinc-500" />
                 <span>Project</span>
               </label>
 
-              <select
-                id="task-project-select"
-                value={projectId || ''}
-                onChange={(e) => setProjectId(e.target.value || null)}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsProjectDropdownOpen(prev => !prev);
+                  setIsWorkspaceDropdownOpen(false);
+                  setIsAssigneeDropdownOpen(false);
+                }}
                 disabled={loading}
-                className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs text-zinc-200 focus:outline-none focus:border-cyan-500/50 cursor-pointer"
+                className="w-full flex items-center justify-between bg-black/50 hover:bg-black/70 border border-white/10 hover:border-cyan-500/40 focus:border-cyan-400 rounded-xl px-3.5 py-2 text-xs text-zinc-200 transition-all cursor-pointer"
+                aria-haspopup="listbox"
+                aria-expanded={isProjectDropdownOpen}
               >
-                <option value="">No Project (Inbox)</option>
-                {projects.map((proj) => (
-                  <option key={proj.id} value={proj.id}>
-                    {proj.name}
-                  </option>
-                ))}
-              </select>
+                <div className="flex items-center gap-2 truncate">
+                  {selectedProject ? (
+                    <>
+                      <span 
+                        className="w-2 h-2 rounded-full flex-shrink-0 shadow-[0_0_8px_currentColor]" 
+                        style={{ backgroundColor: selectedProject.color, color: selectedProject.color }}
+                      />
+                      <span className="truncate font-medium">{selectedProject.name}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="w-2 h-2 rounded-full bg-zinc-600 flex-shrink-0" />
+                      <span className="text-zinc-400">Inbox (No Project)</span>
+                    </>
+                  )}
+                </div>
+                <ChevronDown className={`w-3.5 h-3.5 text-zinc-500 transition-transform duration-150 ${isProjectDropdownOpen ? 'rotate-180 text-cyan-400' : ''}`} />
+              </button>
+
+              {/* Dropdown Menu */}
+              {isProjectDropdownOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-30 cursor-default" 
+                    onClick={() => setIsProjectDropdownOpen(false)} 
+                  />
+                  <div className="absolute left-0 right-0 top-full mt-1.5 z-40 bg-[#0c0d12]/95 border border-cyan-500/40 rounded-xl shadow-[0_0_30px_rgba(0,0,0,0.9),0_0_15px_rgba(0,240,255,0.15)] backdrop-blur-xl p-1.5 space-y-1 max-h-48 overflow-y-auto animate-in fade-in zoom-in-95 duration-100">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProjectId(null);
+                        setIsProjectDropdownOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
+                        projectId === null
+                          ? 'bg-cyan-950/40 text-cyan-300 border border-cyan-500/30 font-medium'
+                          : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/5'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-zinc-600" />
+                        <span>Inbox (No Project)</span>
+                      </div>
+                      {projectId === null && <Check className="w-3 h-3 text-cyan-400" />}
+                    </button>
+
+                    {projects.map((proj) => (
+                      <button
+                        key={proj.id}
+                        type="button"
+                        onClick={() => {
+                          setProjectId(proj.id);
+                          setIsProjectDropdownOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
+                          projectId === proj.id
+                            ? 'bg-cyan-950/40 text-cyan-300 border border-cyan-500/30 font-medium'
+                            : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/5'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <span 
+                            className="w-2 h-2 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: proj.color }}
+                          />
+                          <span className="truncate">{proj.name}</span>
+                        </div>
+                        {projectId === proj.id && <Check className="w-3 h-3 text-cyan-400 flex-shrink-0" />}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
+          </div>
+
+          {/* Row: Conditional Assignee (for Group Workspaces) & Hard Deadline */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+            {/* Dynamic Assignee Field for Group Workspaces */}
+            {isGroupWorkspace ? (
+              <div className="relative space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
+                <label className="text-xs font-semibold text-zinc-400 flex items-center gap-1.5">
+                  <Users className="w-3.5 h-3.5 text-purple-400" />
+                  <span>Assignee</span>
+                  <span className="text-[10px] text-purple-400 font-mono">(Group)</span>
+                </label>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAssigneeDropdownOpen(prev => !prev);
+                    setIsWorkspaceDropdownOpen(false);
+                    setIsProjectDropdownOpen(false);
+                  }}
+                  disabled={loading}
+                  className="w-full flex items-center justify-between bg-black/50 hover:bg-black/70 border border-purple-500/30 hover:border-purple-500/50 focus:border-purple-400 rounded-xl px-3.5 py-2 text-xs text-zinc-200 transition-all cursor-pointer"
+                  aria-haspopup="listbox"
+                  aria-expanded={isAssigneeDropdownOpen}
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    {selectedAssignee ? (
+                      <>
+                        <div className="w-4 h-4 rounded-full overflow-hidden border border-purple-500/40 flex-shrink-0">
+                          {selectedAssignee.avatar_url ? (
+                            <img src={selectedAssignee.avatar_url} alt={selectedAssignee.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full bg-purple-950 text-purple-300 flex items-center justify-center text-[9px] font-bold">
+                              {selectedAssignee.name[0]}
+                            </div>
+                          )}
+                        </div>
+                        <span className="truncate font-medium text-purple-200">{selectedAssignee.name}</span>
+                        <span className="text-[10px] text-zinc-500 font-mono truncate">({selectedAssignee.role})</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="w-2 h-2 rounded-full bg-zinc-600 flex-shrink-0" />
+                        <span className="text-zinc-400">Unassigned</span>
+                      </>
+                    )}
+                  </div>
+                  <ChevronDown className={`w-3.5 h-3.5 text-zinc-500 transition-transform duration-150 ${isAssigneeDropdownOpen ? 'rotate-180 text-purple-400' : ''}`} />
+                </button>
+
+                {/* Assignee Dropdown Menu */}
+                {isAssigneeDropdownOpen && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-30 cursor-default" 
+                      onClick={() => setIsAssigneeDropdownOpen(false)} 
+                    />
+                    <div className="absolute left-0 right-0 top-full mt-1.5 z-40 bg-[#0c0d12]/95 border border-purple-500/40 rounded-xl shadow-[0_0_30px_rgba(0,0,0,0.9),0_0_15px_rgba(168,85,247,0.15)] backdrop-blur-xl p-1.5 space-y-1 max-h-48 overflow-y-auto animate-in fade-in zoom-in-95 duration-100">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAssigneeId(null);
+                          setIsAssigneeDropdownOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
+                          assigneeId === null
+                            ? 'bg-purple-950/40 text-purple-300 border border-purple-500/30 font-medium'
+                            : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/5'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-zinc-600" />
+                          <span>Unassigned</span>
+                        </div>
+                        {assigneeId === null && <Check className="w-3 h-3 text-purple-400" />}
+                      </button>
+
+                      {profiles.map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => {
+                            setAssigneeId(p.id);
+                            setIsAssigneeDropdownOpen(false);
+                          }}
+                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
+                            assigneeId === p.id
+                              ? 'bg-purple-950/40 text-purple-300 border border-purple-500/30 font-medium'
+                              : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/5'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <div className="w-4 h-4 rounded-full overflow-hidden border border-purple-500/40 flex-shrink-0">
+                              {p.avatar_url ? (
+                                <img src={p.avatar_url} alt={p.name} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full bg-purple-950 text-purple-300 flex items-center justify-center text-[9px] font-bold">
+                                  {p.name[0]}
+                                </div>
+                              )}
+                            </div>
+                            <span className="truncate">{p.name}</span>
+                            <span className="text-[10px] text-zinc-500 font-mono">({p.role})</span>
+                          </div>
+                          {assigneeId === p.id && <Check className="w-3 h-3 text-purple-400 flex-shrink-0" />}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-zinc-500 flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-zinc-600" />
+                  <span>Assignee</span>
+                </label>
+                <div className="w-full bg-black/20 border border-white/5 rounded-xl px-3.5 py-2 text-xs text-zinc-500 italic">
+                  Solo Personal Workspace
+                </div>
+              </div>
+            )}
 
             {/* Hard External Deadline (Optional) */}
             <div className="space-y-1.5">
@@ -541,7 +844,21 @@ function AddTaskModalDialog() {
         {/* Action Controls & Footer */}
         <div className="px-5 sm:px-6 py-4 border-t border-white/5 bg-[#09090b]/50 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
           {/* Status summary pill */}
-          <div className="flex items-center gap-2 text-xs text-zinc-400 truncate">
+          <div className="flex items-center gap-2 text-xs text-zinc-400 truncate flex-wrap">
+            {selectedWorkspace && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/5 border border-white/5 text-[11px] truncate">
+                <span 
+                  className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: selectedWorkspace.color, boxShadow: `0 0 6px ${selectedWorkspace.color}` }}
+                />
+                <span className="truncate">{selectedWorkspace.name}</span>
+              </span>
+            )}
+            {isGroupWorkspace && selectedAssignee && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-950/40 border border-purple-500/30 text-[11px] text-purple-300 truncate font-mono">
+                <span>@{selectedAssignee.name.split(' ')[0]}</span>
+              </span>
+            )}
             {selectedProject && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/5 border border-white/5 text-[11px] truncate">
                 <span 

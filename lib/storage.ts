@@ -1,7 +1,8 @@
-import { Task, Project, Section, KarmaProfile, UserProfile } from '@/types';
+import { Task, Project, Section, KarmaProfile, UserProfile, Workspace } from '@/types';
 import { formatDate } from '@/lib/parser';
 
 const STORAGE_KEYS = {
+  WORKSPACES: 'aerox_zenith_workspaces_v1',
   TASKS: 'aerox_zenith_tasks_v1',
   PROJECTS: 'aerox_zenith_projects_v1',
   SECTIONS: 'aerox_zenith_sections_v1',
@@ -40,6 +41,30 @@ export const TEAM_PROFILES: UserProfile[] = [
     email: 'elena@aerox.dev',
     avatar_url: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&q=80',
     role: 'Design Systems Lead',
+  },
+];
+
+export const INITIAL_WORKSPACES: Workspace[] = [
+  {
+    id: 'e0f214e2-9366-4e50-93cb-56272551ec41',
+    name: 'Personal',
+    type: 'personal',
+    color: '#00f0ff',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: '81db2b29-fc5c-4d37-8ffc-991f8c4749f7',
+    name: 'Core Team',
+    type: 'group',
+    color: '#a855f7',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: '79bcf3c8-e047-4959-bd98-c9233633d4bb',
+    name: 'School / Research',
+    type: 'group',
+    color: '#10b981',
+    created_at: new Date().toISOString(),
   },
 ];
 
@@ -369,9 +394,23 @@ export const storage = {
     if (typeof window === 'undefined') return INITIAL_TASKS;
     try {
       const data = localStorage.getItem(STORAGE_KEYS.TASKS);
-      return data ? JSON.parse(data) : INITIAL_TASKS;
+      if (!data) return INITIAL_TASKS;
+      const parsed: Task[] = JSON.parse(data);
+      return parsed.map(t => {
+        let wsId = t.workspace_id;
+        if (!wsId || wsId === 'ws_personal') wsId = 'e0f214e2-9366-4e50-93cb-56272551ec41';
+        else if (wsId === 'ws_core_team') wsId = '81db2b29-fc5c-4d37-8ffc-991f8c4749f7';
+        else if (wsId === 'ws_school') wsId = '79bcf3c8-e047-4959-bd98-c9233633d4bb';
+        return {
+          ...t,
+          workspace_id: wsId
+        };
+      });
     } catch {
-      return INITIAL_TASKS;
+      return INITIAL_TASKS.map(t => ({
+        ...t,
+        workspace_id: t.workspace_id || (t.project_id === 'proj_gtd' ? 'e0f214e2-9366-4e50-93cb-56272551ec41' : '81db2b29-fc5c-4d37-8ffc-991f8c4749f7')
+      }));
     }
   },
   setTasks: (tasks: Task[]) => {
@@ -466,6 +505,24 @@ export const storage = {
       return data ? JSON.parse(data) : TEAM_PROFILES;
     } catch {
       return TEAM_PROFILES;
+    }
+  },
+
+  getWorkspaces: (): Workspace[] => {
+    if (typeof window === 'undefined') return INITIAL_WORKSPACES;
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.WORKSPACES);
+      return data ? JSON.parse(data) : INITIAL_WORKSPACES;
+    } catch {
+      return INITIAL_WORKSPACES;
+    }
+  },
+  setWorkspaces: (workspaces: Workspace[]) => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(STORAGE_KEYS.WORKSPACES, JSON.stringify(workspaces));
+    } catch (e) {
+      console.warn('LocalStorage setWorkspaces failed', e);
     }
   },
 };

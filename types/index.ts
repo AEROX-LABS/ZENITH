@@ -12,6 +12,7 @@ export interface Comment {
 
 export interface Task {
   id: string;
+  workspace_id?: string | null;
   project_id: string | null;
   title: string;
   description?: string;
@@ -89,4 +90,15 @@ export interface ProjectTemplate {
       subtasks?: string[];
     }[];
   }[];
+}
+
+export type WorkspaceType = 'personal' | 'group';
+
+export interface Workspace {
+  id: string;
+  user_id?: string | null;
+  name: string;
+  type: WorkspaceType;
+  color: string;
+  created_at?: string;
 }

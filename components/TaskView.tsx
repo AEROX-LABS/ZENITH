@@ -15,7 +15,9 @@ import {
   Search, 
   Sparkles, 
   Layers, 
-  FolderPlus
+  FolderPlus,
+  User,
+  Users
 } from 'lucide-react';
 import { Priority } from '@/types';
 import { useApp } from '@/context/AppContext';
@@ -32,6 +34,9 @@ export function TaskView() {
     viewMode,
     setViewMode,
     currentProject,
+    currentWorkspace,
+    workspaces,
+    profiles,
     openAddTaskModal,
     searchQuery,
     setSearchQuery,
@@ -86,12 +91,14 @@ export function TaskView() {
         return task.due_date !== null && task.due_date >= todayStr;
       } else if (activeView === 'completed') {
         return task.completed;
+      } else if (currentWorkspace) {
+        return task.workspace_id === currentWorkspace.id;
       } else {
         // Project ID
         return task.project_id === activeView;
       }
     });
-  }, [tasks, activeView, searchQuery, filterPriority, filterLabel, todayStr]);
+  }, [tasks, activeView, currentWorkspace, searchQuery, filterPriority, filterLabel, todayStr]);
 
   // Header Title & Subtitle Info
   const viewInfo = useMemo(() => {
@@ -119,6 +126,14 @@ export function TaskView() {
         subtitle: 'Verified delivered tasks and historical accomplishments',
         color: '#10b981',
       };
+    } else if (currentWorkspace) {
+      return {
+        title: currentWorkspace.name,
+        subtitle: currentWorkspace.type === 'group' 
+          ? 'Group Workspace · Team collaboration, member assignees, and shared deliverables' 
+          : 'Personal Workspace · Solo focus space and private task streams',
+        color: currentWorkspace.color,
+      };
     } else if (currentProject) {
       return {
         title: currentProject.name,
@@ -131,7 +146,7 @@ export function TaskView() {
       subtitle: 'Zenith task management engine',
       color: '#00f0ff',
     };
-  }, [activeView, currentProject]);
+  }, [activeView, currentWorkspace, currentProject]);
 
   // Statistics for the current view
   const stats = useMemo(() => {
@@ -176,9 +191,9 @@ export function TaskView() {
       {/* Top Header Bar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-white/5">
         <div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <span
-              className="w-3 h-3 rounded-full"
+              className="w-3 h-3 rounded-full flex-shrink-0"
               style={{ 
                 backgroundColor: viewInfo.color,
                 boxShadow: `0 0 12px ${viewInfo.color}` 
@@ -187,11 +202,63 @@ export function TaskView() {
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-zinc-100">
               {viewInfo.title}
             </h1>
+
+            {/* Workspace Type Badge */}
+            {currentWorkspace && (
+              <span className={`text-[11px] font-mono font-medium px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 ${
+                currentWorkspace.type === 'group'
+                  ? 'bg-purple-950/50 border-purple-500/40 text-purple-300 shadow-[0_0_10px_rgba(168,85,247,0.2)]'
+                  : 'bg-cyan-950/50 border-cyan-500/40 text-cyan-300 shadow-[0_0_10px_rgba(0,240,255,0.2)]'
+              }`}>
+                {currentWorkspace.type === 'group' ? (
+                  <>
+                    <Users className="w-3 h-3 text-purple-400" />
+                    <span>Group Workspace</span>
+                  </>
+                ) : (
+                  <>
+                    <User className="w-3 h-3 text-cyan-400" />
+                    <span>Personal Workspace</span>
+                  </>
+                )}
+              </span>
+            )}
+
             <span className="text-xs px-2.5 py-0.5 rounded-full bg-white/5 text-zinc-400 font-mono border border-white/5">
               {stats.remaining} remaining
             </span>
           </div>
-          <p className="text-xs sm:text-sm text-zinc-400 mt-1">{viewInfo.subtitle}</p>
+
+          <div className="flex items-center gap-4 flex-wrap mt-1">
+            <p className="text-xs sm:text-sm text-zinc-400">{viewInfo.subtitle}</p>
+
+            {/* Group Workspace Member Collaboration Stack */}
+            {currentWorkspace?.type === 'group' && (
+              <div className="flex items-center gap-2 pl-2 border-l border-white/10">
+                <span className="text-[11px] text-zinc-500 font-mono">Members:</span>
+                <div className="flex items-center -space-x-1.5">
+                  {profiles.slice(0, 4).map((p) => (
+                    <div
+                      key={p.id}
+                      className="w-5 h-5 rounded-full overflow-hidden border border-[#0d0e12] ring-1 ring-white/10"
+                      title={`${p.name} (${p.role})`}
+                    >
+                      {p.avatar_url ? (
+                        <img src={p.avatar_url} alt={p.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full bg-purple-950 text-purple-300 flex items-center justify-center text-[9px] font-bold">
+                          {p.name[0]}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <span className="text-[10px] text-purple-400 font-mono font-semibold">
+                  {profiles.length} Architects
+                </span>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Action Controls & Tri-View Switcher */}
@@ -240,6 +307,7 @@ export function TaskView() {
           <button
             type="button"
             onClick={() => openAddTaskModal({
+              workspace_id: currentWorkspace ? currentWorkspace.id : undefined,
               project_id: currentProject ? currentProject.id : null,
               due_date: activeView === 'today' ? todayStr : null
             })}
@@ -467,6 +535,7 @@ export function TaskView() {
               <button
                 type="button"
                 onClick={() => openAddTaskModal({
+                  workspace_id: currentWorkspace ? currentWorkspace.id : undefined,
                   project_id: currentProject ? currentProject.id : null,
                   due_date: activeView === 'today' ? todayStr : null
                 })}

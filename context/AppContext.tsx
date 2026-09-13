@@ -10,7 +10,8 @@ import {
   UserProfile, 
   ActiveFilterView, 
   ViewMode, 
-  Priority 
+  Priority,
+  Workspace 
 } from '@/types';
 import { storage } from '@/lib/storage';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
@@ -38,6 +39,13 @@ export interface AppContextType {
   viewMode: ViewMode;
   setViewMode: (mode: ViewMode) => void;
   currentProject: Project | null;
+  currentWorkspace: Workspace | null;
+  
+  // Workspaces
+  workspaces: Workspace[];
+  createWorkspace: (workspace: Partial<Workspace>) => Promise<Workspace>;
+  isCreateWorkspaceOpen: boolean;
+  setIsCreateWorkspaceOpen: (open: boolean) => void;
   
   // Selection & Search & Filter
   selectedTaskId: string | null;
@@ -100,6 +108,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export function AppProvider({ children }: { children: React.ReactNode }) {
   // Primary collections with lazy storage initializers
   const [tasks, setTasks] = useState<Task[]>(() => storage.getTasks());
+  const [workspaces, setWorkspaces] = useState<Workspace[]>(() => storage.getWorkspaces());
   const [projects, setProjects] = useState<Project[]>(() => storage.getProjects());
   const [sections, setSections] = useState<Section[]>(() => storage.getSections());
   const [karma, setKarma] = useState<KarmaProfile>(() => storage.getKarma());
@@ -107,7 +116,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [profiles, setProfiles] = useState<UserProfile[]>(() => storage.getProfiles());
 
   // Navigation & Filtering
-  const [activeView, setActiveViewState] = useState<ActiveFilterView>('today');
+  const [activeView, setActiveViewState] = useState<ActiveFilterView>(() => {
+    if (typeof window !== 'undefined') {
+      const match = window.location.pathname.match(/^\/workspace\/([^/?#]+)/);
+      if (match && match[1]) {
+        return match[1];
+      }
+    }
+    return 'today';
+  });
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -116,6 +133,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Modals
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [isCreateWorkspaceOpen, setIsCreateWorkspaceOpen] = useState(false);
   const [addTaskInitialData, setAddTaskInitialData] = useState<Partial<Task> | null>(null);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [isKarmaModalOpen, setIsKarmaModalOpen] = useState(false);
@@ -172,6 +190,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [tasks]);
 
   useEffect(() => {
+    if (workspaces.length > 0) storage.setWorkspaces(workspaces);
+  }, [workspaces]);
+
+  useEffect(() => {
     if (projects.length > 0) storage.setProjects(projects);
   }, [projects]);
 
@@ -202,12 +224,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Supabase Real-time listener
+  // Supabase Real-time listener for tasks and workspaces
   useEffect(() => {
     if (!isSupabaseConfigured) return;
 
+    // Fetch initial workspaces & tasks from Supabase
+    supabase
+      .from('workspaces')
+      .select('*')
+      .then(({ data, error }) => {
+        if (!error && data && data.length > 0) {
+          setWorkspaces(data as Workspace[]);
+        }
+      });
+
+    supabase
+      .from('tasks')
+      .select('*')
+      .then(({ data, error }) => {
+        if (!error && data && data.length > 0) {
+          setTasks(prev => {
+            const map = new Map<string, Task>();
+            prev.forEach(t => map.set(t.id, t));
+            (data as Task[]).forEach(t => map.set(t.id, { ...map.get(t.id), ...t }));
+            return Array.from(map.values());
+          });
+        }
+      });
+
     try {
-      const channel = supabase
+      const taskChannel = supabase
         .channel('aerox_zenith_realtime')
         .on(
           'postgres_changes',
@@ -227,8 +273,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         )
         .subscribe();
 
+      const wsChannel = supabase
+        .channel('aerox_zenith_workspaces')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'workspaces' },
+          (payload) => {
+            if (payload.eventType === 'INSERT') {
+              const newWs = payload.new as Workspace;
+              setWorkspaces(prev => prev.some(w => w.id === newWs.id) ? prev : [...prev, newWs]);
+            } else if (payload.eventType === 'UPDATE') {
+              const updated = payload.new as Workspace;
+              setWorkspaces(prev => prev.map(w => (w.id === updated.id ? updated : w)));
+            } else if (payload.eventType === 'DELETE') {
+              const deleted = payload.old as { id: string };
+              setWorkspaces(prev => prev.filter(w => w.id !== deleted.id));
+            }
+          }
+        )
+        .subscribe();
+
       return () => {
-        supabase.removeChannel(channel);
+        supabase.removeChannel(taskChannel);
+        supabase.removeChannel(wsChannel);
       };
     } catch (err) {
       console.warn('Realtime channel subscription error:', err);
@@ -286,10 +353,56 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  // Current active workspace derived state
+  const currentWorkspace = useMemo(() => {
+    return workspaces.find(w => w.id === activeView) || null;
+  }, [workspaces, activeView]);
+
   // Actions
+  const createWorkspace = useCallback(async (workspaceData: Partial<Workspace>): Promise<Workspace> => {
+    const newWs: Workspace = {
+      id: crypto.randomUUID(),
+      user_id: user?.id || null,
+      name: workspaceData.name?.trim() || 'New Workspace',
+      type: workspaceData.type || 'personal',
+      color: workspaceData.color || '#00f0ff',
+      created_at: new Date().toISOString(),
+    };
+
+    // Optimistic update
+    setWorkspaces(prev => [...prev, newWs]);
+
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase.from('workspaces').insert([{
+          id: newWs.id,
+          name: newWs.name,
+          type: newWs.type,
+          color: newWs.color,
+          user_id: newWs.user_id,
+        }]);
+        if (error) {
+          console.warn('Supabase workspace insert note (saved locally):', error.message);
+        }
+      } catch (err) {
+        console.warn('Supabase workspace insert error:', err);
+      }
+    }
+
+    return newWs;
+  }, [user]);
+
   const addTask = useCallback(async (taskData: Partial<Task>): Promise<Task> => {
+    // Resolve workspace_id: passed > active workspace > first workspace
+    const effectiveWorkspaceId = 
+      taskData.workspace_id || 
+      (workspaces.some(w => w.id === activeView) ? activeView : (workspaces[0]?.id || 'ws_personal'));
+
+    const taskId = crypto.randomUUID();
+
     const newTask: Task = {
-      id: `task_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+      id: taskId,
+      workspace_id: effectiveWorkspaceId,
       project_id: taskData.project_id || (activeView.startsWith('proj_') ? activeView : null),
       title: taskData.title?.trim() || 'Untitled Task',
       description: taskData.description || '',
@@ -310,24 +423,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // 1. Optimistic Update (zero latency in UI)
     setTasks(prev => [newTask, ...prev]);
 
-    // 2. Persist to Supabase if online/configured
+    // 2. Persist to Supabase with sanitized payload
     if (isSupabaseConfigured) {
       try {
-        const { error } = await supabase.from('tasks').insert([newTask]);
+        const payload: Record<string, any> = {
+          id: newTask.id,
+          title: newTask.title,
+          description: newTask.description || null,
+          priority: newTask.priority,
+          completed: newTask.completed,
+          due_date: newTask.due_date,
+          workspace_id: newTask.workspace_id,
+          assignee_id: newTask.assignee_id,
+          created_at: newTask.created_at,
+        };
+
+        if (newTask.project_id && projects.some(p => p.id === newTask.project_id)) {
+          payload.project_id = newTask.project_id;
+        }
+
+        const { error } = await supabase.from('tasks').insert([payload]);
         if (error) {
-          // Revert optimistic update
-          setTasks(prev => prev.filter(t => t.id !== newTask.id));
-          throw new Error(error.message || 'Failed to save task to database.');
+          console.warn('Supabase task insert note (task preserved locally):', error.message);
         }
       } catch (err: unknown) {
-        setTasks(prev => prev.filter(t => t.id !== newTask.id));
-        const message = err instanceof Error ? err.message : 'Database insert failed.';
-        throw new Error(message);
+        console.warn('Supabase task insert catch:', err);
       }
     }
 
     return newTask;
-  }, [activeView, tasks.length]);
+  }, [activeView, tasks.length, workspaces, projects]);
 
   const toggleTask = useCallback((taskId: string) => {
     setTasks(prev => {
@@ -704,6 +829,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         viewMode,
         setViewMode,
         currentProject,
+        currentWorkspace,
+        workspaces,
+        createWorkspace,
+        isCreateWorkspaceOpen,
+        setIsCreateWorkspaceOpen,
         selectedTaskId,
         setSelectedTaskId,
         selectedTask,

@@ -58,16 +58,18 @@ export function TaskItem({
   _isLastSubtask,
   dragHandleProps,
 }: TaskItemProps & { _isLastSubtask?: boolean }) {
-  const { toggleTask, setSelectedTaskId, addSubtask, projects, profiles } = useApp();
+  const { toggleTask, setSelectedTaskId, addSubtask, projects, profiles, workspaces, activeView, setActiveView } = useApp();
   const [isExpanded, setIsExpanded] = useState(true);
   const [isAddingSubtask, setIsAddingSubtask] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
 
   const pStyle = PRIORITY_STYLES[task.priority] || PRIORITY_STYLES.p4;
   const project = projects.find(p => p.id === task.project_id);
+  const workspace = workspaces.find(w => w.id === task.workspace_id);
   const assignee = profiles.find(pr => pr.id === task.assignee_id);
   const hasSubtasks = subtasks.length > 0;
   const completedSubtasksCount = subtasks.filter(s => s.completed).length;
+  const isGlobalView = ['today', 'upcoming', 'inbox', 'completed'].includes(activeView);
 
   const handleCheckboxClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -176,6 +178,35 @@ export function TaskItem({
               </span>
             )}
 
+            {/* Source Workspace Pill in Global Aggregation Views */}
+            {isGlobalView && workspace && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveView(workspace.id);
+                  if (typeof window !== 'undefined') {
+                    window.history.pushState(null, '', `/workspace/${workspace.id}`);
+                  }
+                }}
+                className="flex items-center gap-1.5 text-[10px] font-mono font-medium px-2 py-0.5 rounded-full transition-all hover:scale-105 cursor-pointer"
+                style={{
+                  backgroundColor: `${workspace.color}15`,
+                  borderColor: `${workspace.color}40`,
+                  borderWidth: '1px',
+                  color: workspace.color,
+                  boxShadow: `0 0 8px ${workspace.color}20`,
+                }}
+                title={`Workspace: ${workspace.name} (Click to switch view)`}
+              >
+                <span
+                  className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: workspace.color, boxShadow: `0 0 6px ${workspace.color}` }}
+                />
+                <span className="truncate max-w-[90px]">{workspace.name}</span>
+              </button>
+            )}
+
             {/* Project Badge */}
             {project && (
               <span className="flex items-center gap-1 text-[11px] text-zinc-400 bg-white/5 border border-white/5 px-2 py-0.5 rounded-full">
@@ -240,23 +271,28 @@ export function TaskItem({
             </span>
           )}
 
-          {/* Assignee Avatar */}
+          {/* Assignee Collaboration Badge / Avatar */}
           {assignee && (
             <div
-              className="w-5 h-5 rounded-full overflow-hidden border border-cyan-500/40"
-              title={`Assigned to ${assignee.name}`}
+              className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/5 border border-white/10"
+              title={`Assigned to ${assignee.name} (${assignee.role || 'Member'})`}
             >
-              {assignee.avatar_url ? (
-                <img
-                  src={assignee.avatar_url}
-                  alt={assignee.name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full bg-cyan-950 text-cyan-400 flex items-center justify-center text-[10px] font-bold">
-                  {assignee.name[0]}
-                </div>
-              )}
+              <div className="w-4 h-4 rounded-full overflow-hidden border border-cyan-500/40 flex-shrink-0">
+                {assignee.avatar_url ? (
+                  <img
+                    src={assignee.avatar_url}
+                    alt={assignee.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-cyan-950 text-cyan-400 flex items-center justify-center text-[9px] font-bold">
+                    {assignee.name[0]}
+                  </div>
+                )}
+              </div>
+              <span className="text-[10px] text-zinc-300 font-medium truncate max-w-[80px] hidden sm:inline">
+                {assignee.name.split(' ')[0]}
+              </span>
             </div>
           )}
         </div>
