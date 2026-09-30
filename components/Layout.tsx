@@ -18,7 +18,8 @@ import {
   HelpCircle,
   Layers,
   User,
-  Users
+  Users,
+  Workflow
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { formatDate } from '@/lib/parser';
@@ -34,6 +35,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     karma,
     user,
     setUser,
+    signOut,
     workspaces,
     setIsCreateWorkspaceOpen,
     openAddTaskModal,
@@ -131,7 +133,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <span>Today</span>
               </div>
               {todayCount > 0 && (
-                <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-cyan-950/60 text-cyan-300 border border-cyan-800/50">
+                <span suppressHydrationWarning className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-cyan-950/60 text-cyan-300 border border-cyan-800/50">
                   {todayCount}
                 </span>
               )}
@@ -151,7 +153,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <span>Inbox</span>
               </div>
               {inboxCount > 0 && (
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/5 text-zinc-400">
+                <span suppressHydrationWarning className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/5 text-zinc-400">
                   {inboxCount}
                 </span>
               )}
@@ -171,7 +173,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <span>Upcoming</span>
               </div>
               {upcomingCount > 0 && (
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/5 text-zinc-400">
+                <span suppressHydrationWarning className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/5 text-zinc-400">
                   {upcomingCount}
                 </span>
               )}
@@ -249,9 +251,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-1 flex-shrink-0">
+                    <div className="flex items-center gap-1 flex-shrink-0" suppressHydrationWarning>
                       {wsTaskCount > 0 && (
-                        <span className="text-[10px] font-mono text-zinc-500">
+                        <span suppressHydrationWarning className="text-[10px] font-mono text-zinc-500">
                           {wsTaskCount}
                         </span>
                       )}
@@ -348,9 +350,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
                       <span className="truncate">{project.name}</span>
                     </div>
 
-                    <div className="flex items-center gap-1 flex-shrink-0">
+                    <div className="flex items-center gap-1 flex-shrink-0" suppressHydrationWarning>
                       {projectTaskCount > 0 && (
-                        <span className="text-[10px] font-mono text-zinc-500 group-hover/proj:opacity-0 transition-opacity">
+                        <span suppressHydrationWarning className="text-[10px] font-mono text-zinc-500 group-hover/proj:opacity-0 transition-opacity">
                           {projectTaskCount}
                         </span>
                       )}
@@ -375,15 +377,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          {/* Template Browser Trigger */}
+          {/* Custom System Hub Trigger */}
           <div className="pt-2">
             <button
               type="button"
               onClick={() => setIsTemplateModalOpen(true)}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-cyan-400/90 hover:text-cyan-300 bg-cyan-500/5 hover:bg-cyan-500/10 border border-cyan-500/20 transition-all"
+              className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-cyan-400/90 hover:text-cyan-300 bg-cyan-500/5 hover:bg-cyan-500/10 border border-cyan-500/20 hover:border-cyan-500/40 transition-all group/hub shadow-[0_0_12px_rgba(0,240,255,0.05)]"
             >
-              <Sparkles className="w-4 h-4 text-cyan-400" />
-              <span>Launch Template...</span>
+              <div className="flex items-center gap-2">
+                <Workflow className="w-4 h-4 text-cyan-400 group-hover/hub:rotate-12 transition-transform" />
+                <span className="font-semibold">System Hub...</span>
+              </div>
+              <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-cyan-950/60 text-cyan-400 border border-cyan-500/30">
+                Architect
+              </span>
             </button>
           </div>
         </div>
@@ -448,7 +455,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
           <button
             type="button"
-            onClick={() => user ? setUser(null) : setIsAuthModalOpen(true)}
+            onClick={() => user ? signOut() : setIsAuthModalOpen(true)}
             className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-white/5 transition-colors"
             title={user ? 'Sign out' : 'Sign in'}
           >
@@ -483,14 +490,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <span>{karma.streak_days}d</span>
             </button>
 
-            {/* Template Launcher */}
+            {/* Custom System Hub Trigger */}
             <button
               type="button"
               onClick={() => setIsTemplateModalOpen(true)}
-              className="p-1.5 rounded-xl bg-white/5 text-zinc-400 hover:text-cyan-400"
-              title="Launch Templates"
+              className="p-1.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 hover:text-cyan-300"
+              title="Custom System Hub"
             >
-              <Sparkles className="w-4 h-4 text-cyan-400" />
+              <Workflow className="w-4 h-4" />
             </button>
 
             {/* Feature Tour Guide Trigger */}

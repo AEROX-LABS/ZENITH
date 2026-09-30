@@ -1,5 +1,6 @@
-import { Task, Project, Section, KarmaProfile, UserProfile, Workspace } from '@/types';
+import { Task, Project, Section, KarmaProfile, UserProfile, Workspace, CustomTemplate } from '@/types';
 import { formatDate } from '@/lib/parser';
+import { INITIAL_CUSTOM_TEMPLATES } from '@/lib/templates';
 
 const STORAGE_KEYS = {
   WORKSPACES: 'aerox_zenith_workspaces_v1',
@@ -9,7 +10,10 @@ const STORAGE_KEYS = {
   KARMA: 'aerox_zenith_karma_v1',
   USER: 'aerox_zenith_user_v1',
   PROFILES: 'aerox_zenith_profiles_v1',
+  CUSTOM_TEMPLATES: 'aerox_zenith_custom_templates_v1',
 };
+
+export { INITIAL_CUSTOM_TEMPLATES };
 
 export const INITIAL_USER: UserProfile = {
   id: 'usr_zenith_master',
@@ -133,6 +137,7 @@ export const INITIAL_TASKS: Task[] = [
   // Parent task with hierarchical subtasks for testing SVG branching lines
   {
     id: 'task_parent_1',
+    workspace_id: '81db2b29-fc5c-4d37-8ffc-991f8c4749f7',
     project_id: 'proj_core',
     section_id: 'sec_core_arch',
     title: 'Architect Obsidian Reactive State Fabric',
@@ -166,6 +171,7 @@ export const INITIAL_TASKS: Task[] = [
   // Subtask 1 of task_parent_1
   {
     id: 'task_sub_1_1',
+    workspace_id: '81db2b29-fc5c-4d37-8ffc-991f8c4749f7',
     project_id: 'proj_core',
     section_id: 'sec_core_arch',
     title: 'Implement SVG/CSS branching guide lines for subtask tree',
@@ -185,6 +191,7 @@ export const INITIAL_TASKS: Task[] = [
   // Subtask 2 of task_parent_1
   {
     id: 'task_sub_1_2',
+    workspace_id: '81db2b29-fc5c-4d37-8ffc-991f8c4749f7',
     project_id: 'proj_core',
     section_id: 'sec_core_arch',
     title: 'Build non-AI regex token parser for Quick-Add bar',
@@ -203,6 +210,7 @@ export const INITIAL_TASKS: Task[] = [
   // Subtask 3 of task_parent_1
   {
     id: 'task_sub_1_3',
+    workspace_id: '81db2b29-fc5c-4d37-8ffc-991f8c4749f7',
     project_id: 'proj_core',
     section_id: 'sec_core_arch',
     title: 'Integrate canvas-confetti burst on task completion',
@@ -222,6 +230,7 @@ export const INITIAL_TASKS: Task[] = [
   // Another task in Core Engine
   {
     id: 'task_core_2',
+    workspace_id: '81db2b29-fc5c-4d37-8ffc-991f8c4749f7',
     project_id: 'proj_core',
     section_id: 'sec_core_realtime',
     title: 'Listen to Supabase postgres_changes on broadcast channel',
@@ -241,6 +250,7 @@ export const INITIAL_TASKS: Task[] = [
   // Board Tasks for Zenith UI System
   {
     id: 'task_ui_1',
+    workspace_id: '81db2b29-fc5c-4d37-8ffc-991f8c4749f7',
     project_id: 'proj_ui',
     section_id: 'sec_ui_todo',
     title: 'Refine Obsidian theme tokens & Tailwind neon shadows',
@@ -258,6 +268,7 @@ export const INITIAL_TASKS: Task[] = [
   },
   {
     id: 'task_ui_2',
+    workspace_id: '81db2b29-fc5c-4d37-8ffc-991f8c4749f7',
     project_id: 'proj_ui',
     section_id: 'sec_ui_progress',
     title: 'Construct mobile portrait bottom dock and floating neon FAB',
@@ -275,6 +286,7 @@ export const INITIAL_TASKS: Task[] = [
   },
   {
     id: 'task_ui_3',
+    workspace_id: '81db2b29-fc5c-4d37-8ffc-991f8c4749f7',
     project_id: 'proj_ui',
     section_id: 'sec_ui_done',
     title: 'Initialize Lucide icon registry and glass panels',
@@ -295,6 +307,7 @@ export const INITIAL_TASKS: Task[] = [
   // Sprint 26 Tasks
   {
     id: 'task_sp_1',
+    workspace_id: '81db2b29-fc5c-4d37-8ffc-991f8c4749f7',
     project_id: 'proj_sprint',
     section_id: 'sec_sp_backlog',
     title: 'Implement 1-click project template library',
@@ -312,6 +325,7 @@ export const INITIAL_TASKS: Task[] = [
   },
   {
     id: 'task_sp_2',
+    workspace_id: '81db2b29-fc5c-4d37-8ffc-991f8c4749f7',
     project_id: 'proj_sprint',
     section_id: 'sec_sp_dev',
     title: 'Construct Karma Streak Engine & 7-Day Velocity Chart',
@@ -331,6 +345,7 @@ export const INITIAL_TASKS: Task[] = [
   // Inbox Task (Unassigned to any specific project)
   {
     id: 'task_inbox_1',
+    workspace_id: 'e0f214e2-9366-4e50-93cb-56272551ec41',
     project_id: null,
     section_id: null,
     title: 'Quick thought: Evaluate Web Workers for large dataset filtering',
@@ -348,6 +363,7 @@ export const INITIAL_TASKS: Task[] = [
   },
   {
     id: 'task_inbox_2',
+    workspace_id: 'e0f214e2-9366-4e50-93cb-56272551ec41',
     project_id: null,
     section_id: null,
     title: 'Book annual cloud server reservations for Q4',
@@ -476,13 +492,13 @@ export const storage = {
     }
   },
 
-  getUser: (): UserProfile => {
-    if (typeof window === 'undefined') return INITIAL_USER;
+  getUser: (): UserProfile | null => {
+    if (typeof window === 'undefined') return null;
     try {
       const data = localStorage.getItem(STORAGE_KEYS.USER);
-      return data ? JSON.parse(data) : INITIAL_USER;
+      return data ? JSON.parse(data) : null;
     } catch {
-      return INITIAL_USER;
+      return null;
     }
   },
   setUser: (user: UserProfile | null) => {
@@ -495,6 +511,15 @@ export const storage = {
       }
     } catch (e) {
       console.warn('LocalStorage setUser failed', e);
+    }
+  },
+  clearAll: () => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+    } catch (e) {
+      console.warn('LocalStorage clearAll failed', e);
     }
   },
 
@@ -523,6 +548,24 @@ export const storage = {
       localStorage.setItem(STORAGE_KEYS.WORKSPACES, JSON.stringify(workspaces));
     } catch (e) {
       console.warn('LocalStorage setWorkspaces failed', e);
+    }
+  },
+
+  getCustomTemplates: (): CustomTemplate[] => {
+    if (typeof window === 'undefined') return INITIAL_CUSTOM_TEMPLATES;
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.CUSTOM_TEMPLATES);
+      return data ? JSON.parse(data) : INITIAL_CUSTOM_TEMPLATES;
+    } catch {
+      return INITIAL_CUSTOM_TEMPLATES;
+    }
+  },
+  setCustomTemplates: (templates: CustomTemplate[]) => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(STORAGE_KEYS.CUSTOM_TEMPLATES, JSON.stringify(templates));
+    } catch (e) {
+      console.warn('LocalStorage setCustomTemplates failed', e);
     }
   },
 };

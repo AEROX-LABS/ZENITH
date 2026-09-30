@@ -20,6 +20,8 @@ export const metadata: Metadata = {
   },
 };
 
+import { Providers } from "./providers";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -28,10 +30,16 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} dark h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-[#09090b] text-zinc-100 selection:bg-[#00f0ff]/30 selection:text-[#00f0ff]">
-        {children}
+      <body
+        suppressHydrationWarning
+        className="min-h-full flex flex-col bg-[#000101] text-zinc-100 selection:bg-[#00f0ff]/30 selection:text-[#00f0ff]"
+      >
+        <Providers>
+          {children}
+        </Providers>
       </body>
     </html>
   );

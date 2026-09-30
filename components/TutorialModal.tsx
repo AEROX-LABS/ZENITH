@@ -320,48 +320,48 @@ export function TutorialModal() {
       ),
     },
 
-    // STEP 6: 1-CLICK TEMPLATE ENGINE
+    // STEP 6: CUSTOM SYSTEM HUB & ARCHITECT BUILDER
     {
       id: 6,
-      title: '1-Click Template Engine',
-      subtitle: 'Spin up production project systems in milliseconds',
-      badge: '9 Pre-Built Systems',
+      title: 'Custom System Hub & Architect',
+      subtitle: 'Design, save, and deploy user-owned multi-stage project systems',
+      badge: 'System Architect',
       badgeColor: 'border-cyan-500/40 text-cyan-400 bg-cyan-950/30',
       icon: Zap,
       content: (
         <div className="space-y-4">
           <p className="text-sm text-zinc-300 leading-relaxed">
-            Never start from a blank canvas. Click <span className="text-cyan-400 font-semibold">Launch Template...</span> in the sidebar or mobile header to instantiate pre-configured workflows complete with sections and tasks:
+            Never start from scratch. Click <span className="text-cyan-400 font-semibold">System Hub...</span> in the sidebar or mobile header to access your blueprints or click <span className="text-cyan-400 font-semibold">[+ ARCHITECT NEW SYSTEM]</span> to compile custom workflows:
           </p>
 
           <div className="space-y-2">
             <div className="p-2.5 rounded-xl bg-black/40 border border-cyan-500/20 flex items-center justify-between">
               <div>
-                <span className="text-xs font-bold text-cyan-300">Work Systems</span>
-                <p className="text-[11px] text-zinc-400">Meeting Agenda & Sync, Hiring CRM, Client Retainers</p>
+                <span className="text-xs font-bold text-cyan-300">System Architect</span>
+                <p className="text-[11px] text-zinc-400">Design custom stages, priorities, and default task sets with frosted-glass builder</p>
               </div>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-950/60 text-cyan-400 border border-cyan-800">
-                3 Templates
+                Builder
               </span>
             </div>
 
             <div className="p-2.5 rounded-xl bg-black/40 border border-purple-500/20 flex items-center justify-between">
               <div>
-                <span className="text-xs font-bold text-purple-300">Tech Systems</span>
-                <p className="text-[11px] text-zinc-400">Sprint Backlog, Bug Tracker & QA, Product Roadmap</p>
+                <span className="text-xs font-bold text-purple-300">User-Owned System Hub</span>
+                <p className="text-[11px] text-zinc-400">Personalized grid with dynamic tags, RLS isolation, and 1-click batch deployment</p>
               </div>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-950/60 text-purple-400 border border-purple-800">
-                3 Templates
+                Cloud Synced
               </span>
             </div>
 
             <div className="p-2.5 rounded-xl bg-black/40 border border-emerald-500/20 flex items-center justify-between">
               <div>
-                <span className="text-xs font-bold text-emerald-300">Personal Systems</span>
-                <p className="text-[11px] text-zinc-400">Student Coursework, Weekly Review (GTD), Goal Tracker</p>
+                <span className="text-xs font-bold text-emerald-300">1-Click Launch Logic</span>
+                <p className="text-[11px] text-zinc-400">Instantly instantiates full Project, Sections, and Tasks directly into active workspace</p>
               </div>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-800">
-                3 Templates
+                Instant Deploy
               </span>
             </div>
           </div>

@@ -12,6 +12,7 @@ export interface Comment {
 
 export interface Task {
   id: string;
+  user_id?: string | null;
   workspace_id?: string | null;
   project_id: string | null;
   title: string;
@@ -33,6 +34,7 @@ export interface Task {
 
 export interface Project {
   id: string;
+  user_id?: string | null;
   name: string;
   color: string;
   view_mode: ViewMode;
@@ -43,6 +45,7 @@ export interface Project {
 
 export interface Section {
   id: string;
+  user_id?: string | null;
   project_id: string;
   name: string;
   order: number;
@@ -54,6 +57,8 @@ export interface KarmaHistoryItem {
 }
 
 export interface KarmaProfile {
+  id?: string;
+  user_id?: string | null;
   points: number;
   streak_days: number;
   daily_goal: number;
@@ -72,24 +77,36 @@ export interface UserProfile {
 
 export type ActiveFilterView = 'inbox' | 'today' | 'upcoming' | 'completed' | string;
 
-export interface ProjectTemplate {
-  id: string;
+export interface SystemStructureTask {
   title: string;
+  description?: string;
+  priority?: Priority;
+  labels?: string[];
+  due_days_offset?: number;
+  subtasks?: string[];
+}
+
+export interface SystemStructureSection {
+  name: string;
+  tasks: SystemStructureTask[];
+}
+
+export interface SystemStructure {
+  sections: SystemStructureSection[];
+  view_mode?: ViewMode;
+  color?: string;
+}
+
+export interface CustomTemplate {
+  id: string;
+  user_id?: string | null;
+  name: string;
   description: string;
-  category: 'work' | 'tech' | 'personal';
   icon: string;
-  color: string;
-  sections: {
-    name: string;
-    tasks: {
-      title: string;
-      description?: string;
-      priority: Priority;
-      labels: string[];
-      due_days_offset?: number;
-      subtasks?: string[];
-    }[];
-  }[];
+  category: string;
+  color?: string;
+  system_structure: SystemStructure;
+  created_at?: string;
 }
 
 export type WorkspaceType = 'personal' | 'group';
