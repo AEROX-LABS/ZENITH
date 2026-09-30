@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -14,7 +15,10 @@ import {
   Flag,
   Folder,
   AlertCircle,
-  Loader2
+  Loader2,
+  ExternalLink,
+  Layers,
+  ArrowRight
 } from 'lucide-react';
 import { Task, Priority } from '@/types';
 import { useApp } from '@/context/AppContext';
@@ -34,11 +38,72 @@ const DROPDOWN_PRIORITIES: Record<Priority, { label: string; text: string; bg: s
   p4: { label: 'P4 Low', text: 'text-zinc-400', bg: 'bg-zinc-800/40', activeBorder: 'border-zinc-500 ring-1 ring-zinc-500/50', glow: '' },
 };
 
+// Helper to convert HH:mm to minutes from midnight (0 - 1439)
+function parseTimeToMinutes(timeStr: string | null | undefined): number {
+  if (!timeStr) return 9999;
+  const match = timeStr.trim().match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return 9999;
+  const h = parseInt(match[1], 10);
+  const m = parseInt(match[2], 10);
+  return h * 60 + m;
+}
+
+// Tactical time phase detector matching slider: Morning (Cyan), Afternoon (Amber), Night (Magenta)
+function getTimePhaseTheme(timeStr: string | null | undefined) {
+  if (!timeStr) {
+    return {
+      phase: 'UNASSIGNED',
+      color: '#71717A',
+      border: 'border-zinc-800',
+      bg: 'bg-zinc-900/60',
+      text: 'text-zinc-500',
+      glow: '',
+      dot: 'bg-zinc-600',
+    };
+  }
+  const mins = parseTimeToMinutes(timeStr);
+  if (mins >= 300 && mins < 720) {
+    // 05:00 - 11:59 Morning Cyan
+    return {
+      phase: 'MORNING PHASE',
+      color: '#00E0FF',
+      border: 'border-cyan-500/40',
+      bg: 'bg-cyan-500/10',
+      text: 'text-cyan-400',
+      glow: 'shadow-[0_0_12px_rgba(0,224,255,0.3)]',
+      dot: 'bg-cyan-400 shadow-[0_0_6px_#00E0FF]',
+    };
+  } else if (mins >= 720 && mins < 1080) {
+    // 12:00 - 17:59 Afternoon Amber
+    return {
+      phase: 'AFTERNOON PHASE',
+      color: '#F59E0B',
+      border: 'border-amber-500/40',
+      bg: 'bg-amber-500/10',
+      text: 'text-amber-400',
+      glow: 'shadow-[0_0_12px_rgba(245,158,11,0.3)]',
+      dot: 'bg-amber-400 shadow-[0_0_6px_#F59E0B]',
+    };
+  } else {
+    // 18:00 - 04:59 Night Magenta
+    return {
+      phase: 'NIGHT PHASE',
+      color: '#FF006E',
+      border: 'border-pink-500/40',
+      bg: 'bg-pink-500/10',
+      text: 'text-pink-400',
+      glow: 'shadow-[0_0_12px_rgba(255,0,110,0.3)]',
+      dot: 'bg-[#FF006E] shadow-[0_0_6px_#FF006E]',
+    };
+  }
+}
+
 export function CalendarView({ tasks }: { tasks: Task[] }) {
   const { 
     setSelectedTaskId, 
     openAddTaskModal, 
     addTask, 
+    updateTask,
     projects, 
     currentProject, 
     showToast 
@@ -55,17 +120,31 @@ export function CalendarView({ tasks }: { tasks: Task[] }) {
   const [dropdownLoading, setDropdownLoading] = useState(false);
   const [dropdownError, setDropdownError] = useState<string | null>(null);
 
-  // Close dropdown on global Escape key
+  // Deep-dive magnification state (1500ms hover trigger)
+  const [deepDiveDate, setDeepDiveDate] = useState<string | null>(null);
+  const [chargingDate, setChargingDate] = useState<string | null>(null);
+  const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Clear hover timer on unmount
   useEffect(() => {
-    if (!activeDropdownDate) return;
+    return () => {
+      if (hoverTimerRef.current) {
+        clearTimeout(hoverTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Close dropdown or deep-dive on global Escape key
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setActiveDropdownDate(null);
+        setDeepDiveDate(null);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeDropdownDate]);
+  }, []);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -181,6 +260,63 @@ export function CalendarView({ tasks }: { tasks: Task[] }) {
     }
   };
 
+  // Deep-dive tasks for the magnified cell
+  const deepDiveTasks = useMemo(() => {
+    if (!deepDiveDate) return [];
+    return tasks.filter((t) => t.due_date === deepDiveDate);
+  }, [tasks, deepDiveDate]);
+
+  // Group by category (Project name or first label) & sort chronologically by slider-assigned time
+  const groupedDeepDiveTasks = useMemo(() => {
+    const groups: Record<string, Task[]> = {};
+    
+    deepDiveTasks.forEach((task) => {
+      let category = 'GENERAL // INBOX';
+      if (task.project_id) {
+        const proj = projects.find((p) => p.id === task.project_id);
+        if (proj) category = `PROJECT: ${proj.name.toUpperCase()}`;
+      } else if (task.labels && task.labels.length > 0) {
+        category = `TAG: ${task.labels[0].toUpperCase()}`;
+      }
+
+      if (!groups[category]) {
+        groups[category] = [];
+      }
+      groups[category].push(task);
+    });
+
+    // Sort each category chronologically by slider-assigned time (deadline)
+    Object.keys(groups).forEach((cat) => {
+      groups[cat].sort((a, b) => {
+        const minA = parseTimeToMinutes(a.deadline);
+        const minB = parseTimeToMinutes(b.deadline);
+        return minA - minB;
+      });
+    });
+
+    return groups;
+  }, [deepDiveTasks, projects]);
+
+  const handleCellMouseEnter = (dateStr: string) => {
+    if (activeDropdownDate || deepDiveDate) return;
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+    }
+    setChargingDate(dateStr);
+    hoverTimerRef.current = setTimeout(() => {
+      setChargingDate(null);
+      setDeepDiveDate(dateStr);
+    }, 1500);
+  };
+
+  const handleCellMouseLeave = () => {
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+    setChargingDate(null);
+  };
+
   return (
     <div className="bg-[#0d0e12]/80 border border-white/5 rounded-2xl p-4 sm:p-6 shadow-xl">
       {/* Calendar Header Controls */}
@@ -249,8 +385,17 @@ export function CalendarView({ tasks }: { tasks: Task[] }) {
           return (
             <div
               key={idx}
+              onMouseEnter={() => {
+                if (cell.isCurrentMonth && !isDropdownActive) {
+                  handleCellMouseEnter(cell.dateStr);
+                }
+              }}
+              onMouseLeave={() => {
+                handleCellMouseLeave();
+              }}
               onClick={() => {
                 if (cell.isCurrentMonth && !isDropdownActive) {
+                  handleCellMouseLeave();
                   handleOpenDropdown(cell.dateStr);
                 }
               }}
@@ -260,8 +405,25 @@ export function CalendarView({ tasks }: { tasks: Task[] }) {
                   : 'bg-black/10 border-transparent text-zinc-600 opacity-40 cursor-default'
               } ${cell.isToday ? 'ring-1 ring-cyan-400 bg-cyan-950/10' : ''} ${
                 isDropdownActive ? 'ring-2 ring-cyan-400 border-cyan-500/60 z-30 bg-cyan-950/20' : ''
-              }`}
+              } ${chargingDate === cell.dateStr ? 'border-cyan-400/80 shadow-[0_0_15px_rgba(0,224,255,0.3)]' : ''}`}
             >
+              {/* 1.5s Hover Charging Indicator */}
+              {chargingDate === cell.dateStr && (
+                <div className="absolute inset-0 rounded-xl pointer-events-none overflow-hidden z-20">
+                  <div className="absolute inset-0 border border-cyan-400/80 animate-pulse" />
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-cyan-950/60">
+                    <motion.div
+                      initial={{ width: '0%' }}
+                      animate={{ width: '100%' }}
+                      transition={{ duration: 1.5, ease: 'linear' }}
+                      className="h-full bg-gradient-to-r from-cyan-400 via-[#00F5D4] to-[#FF006E]"
+                    />
+                  </div>
+                  <div className="absolute top-1 right-1 text-[8px] font-mono text-cyan-300 font-bold bg-black/90 px-1 rounded border border-cyan-500/40">
+                    1.5s HOLD
+                  </div>
+                </div>
+              )}
               {/* Day Header */}
               <div className="flex items-center justify-between">
                 <span
@@ -535,6 +697,218 @@ export function CalendarView({ tasks }: { tasks: Task[] }) {
           );
         })}
       </div>
+
+      {/* ========================================================================= */}
+      {/* 1.5s DEEP-DIVE MAGNIFICATION BREAKOUT OVERLAY                             */}
+      {/* ========================================================================= */}
+      <AnimatePresence>
+        {deepDiveDate && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md bg-black/75 animate-in fade-in duration-200"
+            onClick={() => setDeepDiveDate(null)}
+          >
+            <motion.div
+              layoutId={`cell-${deepDiveDate}`}
+              initial={{ scale: 0.75, opacity: 0, y: 15 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.75, opacity: 0, y: 15 }}
+              transition={{ type: 'spring', damping: 26, stiffness: 320 }}
+              onMouseLeave={() => setDeepDiveDate(null)}
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-full max-w-2xl max-h-[85vh] bg-[#000101]/95 border-2 border-cyan-400/50 rounded-2xl p-6 backdrop-blur-2xl text-zinc-100 font-mono flex flex-col overflow-hidden"
+              style={{
+                boxShadow: '0 0 50px rgba(0, 224, 255, 0.2), 0 0 80px rgba(0,0,0,0.95)',
+              }}
+            >
+              {/* Corner Reticle Accents */}
+              <div className="absolute top-2 left-2 text-[10px] text-cyan-400/60 pointer-events-none select-none">┌</div>
+              <div className="absolute top-2 right-2 text-[10px] text-cyan-400/60 pointer-events-none select-none">┐</div>
+              <div className="absolute bottom-2 left-2 text-[10px] text-cyan-400/60 pointer-events-none select-none">└</div>
+              <div className="absolute bottom-2 right-2 text-[10px] text-cyan-400/60 pointer-events-none select-none">┘</div>
+
+              {/* Glowing Top Neon Ribbon */}
+              <div className="h-1 w-full bg-gradient-to-r from-cyan-400 via-[#00F5D4] to-[#FF006E] rounded-t-xl -mt-6 -mx-6 mb-4 shadow-[0_0_15px_rgba(0,224,255,0.6)]" />
+
+              {/* Deep-Dive Header */}
+              <div className="flex items-start justify-between pb-4 border-b border-white/10 gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_#00E0FF] animate-pulse" />
+                    <span className="text-[10px] tracking-widest text-cyan-400 uppercase font-bold">
+                      CALENDAR // 1.5S TACTICAL DEEP-DIVE
+                    </span>
+                    <span className="text-[9px] px-2 py-0.5 rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-300">
+                      2.5x MAGNIFIED
+                    </span>
+                  </div>
+                  <h3 className="text-xl font-bold text-zinc-100 flex items-center gap-2">
+                    <span>{deepDiveDate}</span>
+                    <span className="text-xs text-zinc-400 font-normal">
+                      ({deepDiveTasks.length} {deepDiveTasks.length === 1 ? 'TRANSMISSION' : 'TRANSMISSIONS'})
+                    </span>
+                  </h3>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      openAddTaskModal({ due_date: deepDiveDate });
+                      setDeepDiveDate(null);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-300 text-xs rounded-xl transition-all shadow-[0_0_10px_rgba(0,240,255,0.2)]"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>NEW TASK</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeepDiveDate(null)}
+                    className="p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-white/10 rounded-xl transition-colors"
+                    title="Snap back (Esc)"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Deep-Dive Body: Grouped by Category & Chronologically Sorted */}
+              <div className="flex-1 overflow-y-auto my-4 space-y-5 pr-1 no-scrollbar">
+                {Object.keys(groupedDeepDiveTasks).length === 0 ? (
+                  <div className="py-12 text-center space-y-3">
+                    <div className="w-12 h-12 rounded-2xl bg-zinc-900/80 border border-white/5 mx-auto flex items-center justify-center text-zinc-600">
+                      <Clock className="w-6 h-6" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm text-zinc-300 font-bold uppercase tracking-wider">
+                        NO SCHEDULED TELEMETRY
+                      </p>
+                      <p className="text-xs text-zinc-500 max-w-sm mx-auto">
+                        No tasks have been assigned to coordinate {deepDiveDate}.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        openAddTaskModal({ due_date: deepDiveDate });
+                        setDeepDiveDate(null);
+                      }}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-zinc-950 font-bold text-xs rounded-xl shadow-[0_0_20px_rgba(0,240,255,0.4)] transition-all cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>INITIALIZE TASK</span>
+                    </button>
+                  </div>
+                ) : (
+                  Object.entries(groupedDeepDiveTasks).map(([category, catTasks]) => (
+                    <div key={category} className="space-y-2">
+                      {/* Category Header */}
+                      <div className="flex items-center justify-between px-2.5 py-1.5 bg-white/[0.03] border-l-2 border-cyan-400 rounded-r-lg">
+                        <div className="flex items-center gap-2">
+                          <Layers className="w-3.5 h-3.5 text-cyan-400" />
+                          <span className="text-xs font-bold text-zinc-200 tracking-wider">
+                            {category}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-zinc-400 bg-black/60 px-2 py-0.5 rounded border border-white/5">
+                          {catTasks.length} {catTasks.length === 1 ? 'TASK' : 'TASKS'}
+                        </span>
+                      </div>
+
+                      {/* Chronologically Sorted Task Items */}
+                      <div className="space-y-1.5 pl-1 sm:pl-2">
+                        {catTasks.map((task) => {
+                          const phase = getTimePhaseTheme(task.deadline);
+                          const priorityCfg = DROPDOWN_PRIORITIES[task.priority] || DROPDOWN_PRIORITIES.p4;
+
+                          return (
+                            <div
+                              key={task.id}
+                              onClick={() => {
+                                setSelectedTaskId(task.id);
+                                setDeepDiveDate(null);
+                              }}
+                              className={`group/item flex items-center justify-between gap-3 p-3 rounded-xl border bg-black/40 hover:bg-white/[0.04] transition-all cursor-pointer ${
+                                task.completed ? 'opacity-50 border-white/5' : 'border-white/10 hover:border-cyan-500/40'
+                              }`}
+                            >
+                              <div className="flex items-center gap-3 min-w-0 flex-1">
+                                {/* Completion Toggle Checkbox */}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    updateTask(task.id, { completed: !task.completed });
+                                  }}
+                                  className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all ${
+                                    task.completed
+                                      ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400 shadow-[0_0_8px_rgba(0,245,212,0.4)]'
+                                      : 'border-white/20 hover:border-cyan-400 text-transparent'
+                                  }`}
+                                  aria-label={task.completed ? 'Mark incomplete' : 'Mark complete'}
+                                >
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                </button>
+
+                                {/* Slider-Assigned Chronological Time Badge */}
+                                <div
+                                  className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[11px] font-mono font-bold flex-shrink-0 ${phase.bg} ${phase.border} ${phase.text} ${phase.glow}`}
+                                  title={`Assigned Time: ${task.deadline || 'Anytime'}`}
+                                >
+                                  <span className={`w-1.5 h-1.5 rounded-full ${phase.dot}`} />
+                                  <Clock className="w-3 h-3" />
+                                  <span>{task.deadline || '--:-- ANYTIME'}</span>
+                                </div>
+
+                                {/* Task Title */}
+                                <div className="min-w-0 flex-1">
+                                  <p
+                                    className={`text-xs text-zinc-100 truncate font-sans font-medium group-hover/item:text-cyan-300 transition-colors ${
+                                      task.completed ? 'line-through text-zinc-500' : ''
+                                    }`}
+                                  >
+                                    {task.title}
+                                  </p>
+                                  {task.description && (
+                                    <p className="text-[11px] text-zinc-500 truncate font-sans">
+                                      {task.description}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Priority & Inspection Action */}
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                <span
+                                  className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold border uppercase ${priorityCfg.bg} ${priorityCfg.text} ${priorityCfg.activeBorder}`}
+                                >
+                                  {task.priority.toUpperCase()}
+                                </span>
+                                <span className="text-zinc-600 group-hover/item:text-cyan-400 transition-colors">
+                                  <ArrowRight className="w-4 h-4" />
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Deep-Dive Footer Snapping Hint */}
+              <div className="pt-3 border-t border-white/10 flex items-center justify-between text-[10px] text-zinc-500">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                  <span>KINETIC SNAP-BACK: MOVE MOUSE OFF CELL TO COLLAPSE</span>
+                </span>
+                <span className="text-zinc-600">[ESC] DISMISS</span>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

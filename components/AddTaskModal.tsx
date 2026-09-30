@@ -23,6 +23,7 @@ import {
 import { useApp } from '@/context/AppContext';
 import { parseTaskInput, formatDate } from '@/lib/parser';
 import { Priority } from '@/types';
+import { TacticalTimeSlider } from '@/components/TacticalTimeSlider';
 
 const PRIORITY_CONFIG: Record<Priority, { label: string; text: string; bg: string; border: string; activeRing: string }> = {
   p1: { 
@@ -743,22 +744,12 @@ function AddTaskModalDialog() {
               </div>
             )}
 
-            {/* Hard External Deadline (Optional) */}
-            <div className="space-y-1.5">
-              <label htmlFor="task-deadline-input" className="text-xs font-semibold text-zinc-400 flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-zinc-500" />
-                <span>Hard Deadline</span>
-                <span className="text-zinc-600 font-normal">(optional)</span>
-              </label>
-
-              <input
-                id="task-deadline-input"
-                type="text"
+            {/* Tactical 24-Hour Time Slider (Continuous Magnetic Slider) */}
+            <div className="space-y-1.5 col-span-1 sm:col-span-2">
+              <TacticalTimeSlider
                 value={deadline}
-                onChange={(e) => setDeadline(e.target.value)}
-                disabled={loading}
-                placeholder="e.g. 5:00 PM or Friday EOD"
-                className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-cyan-500/50"
+                onChange={setDeadline}
+                label="TACTICAL TIME SLIDER // DEADLINE"
               />
             </div>
           </div>

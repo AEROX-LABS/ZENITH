@@ -110,6 +110,9 @@ export interface AppContextType {
   setIsTemplateModalOpen: (open: boolean) => void;
   isKarmaModalOpen: boolean;
   setIsKarmaModalOpen: (open: boolean) => void;
+  isOperatorProfileOpen: boolean;
+  setIsOperatorProfileOpen: (open: boolean) => void;
+  openOperatorProfile: () => void;
   isAuthModalOpen: boolean;
   setIsAuthModalOpen: (open: boolean) => void;
   isTutorialOpen: boolean;
@@ -188,6 +191,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [addTaskInitialData, setAddTaskInitialData] = useState<Partial<Task> | null>(null);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [isKarmaModalOpen, setIsKarmaModalOpen] = useState(false);
+  const [isOperatorProfileOpen, setIsOperatorProfileOpen] = useState(false);
+  const openOperatorProfile = useCallback(() => setIsOperatorProfileOpen(true), []);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isTutorialOpen, setIsTutorialOpen] = useState(false);
 
@@ -230,6 +235,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setIsSystemBuilderOpen(false);
     setIsTemplateModalOpen(false);
     setIsKarmaModalOpen(false);
+    setIsOperatorProfileOpen(false);
     setIsAuthModalOpen(false);
     setIsTutorialOpen(false);
 
@@ -1575,6 +1581,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setIsTemplateModalOpen,
         isKarmaModalOpen,
         setIsKarmaModalOpen,
+        isOperatorProfileOpen,
+        setIsOperatorProfileOpen,
+        openOperatorProfile,
         isAuthModalOpen,
         setIsAuthModalOpen,
         isTutorialOpen,

@@ -21,7 +21,8 @@ import {
   Users,
   Workflow,
   Tag,
-  Hash
+  Hash,
+  Activity
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { formatDate } from '@/lib/parser';
@@ -30,6 +31,7 @@ import { CreateWorkspaceModal } from '@/components/CreateWorkspaceModal';
 import { GlobalRadarButton } from '@/components/GlobalRadarButton';
 import { GlobalNetworkPanel } from '@/components/GlobalNetworkPanel';
 import { DynamicEntityModal, MagneticButton } from '@/components/DynamicEntityModal';
+import { OperatorProfileModal } from '@/components/OperatorProfileModal';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const {
@@ -55,6 +57,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     openEntityModal,
     filterLabel,
     setFilterLabel,
+    openOperatorProfile,
   } = useApp();
 
   const [isCreatingProject, setIsCreatingProject] = useState(false);
@@ -485,24 +488,25 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        {/* Karma Streak Flame Banner */}
+        {/* Telemetry Velocity Banner (Purged Gamification) */}
         <div className="p-3 border-t border-white/5 bg-[#09090b]">
           <div
-            onClick={() => setIsKarmaModalOpen(true)}
-            className="p-3 rounded-xl bg-black/40 border border-amber-500/20 hover:border-amber-500/40 cursor-pointer transition-all group"
+            onClick={() => openOperatorProfile()}
+            className="p-3 rounded-xl bg-black/40 border border-[#00F5D4]/20 hover:border-[#00F5D4]/50 cursor-pointer transition-all group"
           >
             <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-amber-400">
-                <Flame className="w-4 h-4 fill-amber-400 animate-pulse" />
-                <span>Streak: {karma.streak_days} Days</span>
+              <div className="flex items-center gap-1.5 text-xs font-bold text-[#00F5D4]">
+                <Flame className="w-4 h-4 fill-[#00F5D4] text-[#00F5D4] animate-pulse" />
+                <span>Active Streak: {karma.streak_days} Days</span>
               </div>
-              <span className="text-[10px] font-mono text-cyan-400 font-semibold">
-                {karma.points} pts
+              <span className="text-[10px] font-mono text-[#00E0FF] font-semibold flex items-center gap-1">
+                <Activity className="w-3 h-3" />
+                <span>TELEMETRY</span>
               </span>
             </div>
-            <div className="flex items-center justify-between text-[11px] text-zinc-400">
-              <span>Goal: {karma.daily_goal} daily</span>
-              <ChevronRight className="w-3 h-3 text-zinc-600 group-hover:text-amber-400 transition-colors" />
+            <div className="flex items-center justify-between text-[11px] text-zinc-400 font-mono">
+              <span>Consistency Matrix</span>
+              <ChevronRight className="w-3 h-3 text-zinc-600 group-hover:text-[#00F5D4] transition-colors" />
             </div>
           </div>
         </div>
@@ -524,13 +528,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </button>
         </div>
 
-        {/* User Account / Sign Out Footer */}
+        {/* User Account / Operator Profile Bottom-Left Trigger */}
         <div className="p-3 border-t border-white/5 bg-[#09090b] flex items-center justify-between">
           <div
-            onClick={() => setIsAuthModalOpen(true)}
-            className="flex items-center gap-2.5 min-w-0 cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={() => openOperatorProfile()}
+            className="flex items-center gap-2.5 min-w-0 cursor-pointer hover:opacity-90 transition-opacity group/avatar"
+            title="Open [OPERATOR_PROFILE] Telemetry"
           >
-            <div className="w-7 h-7 rounded-full overflow-hidden border border-cyan-500/40 flex-shrink-0 bg-cyan-950 flex items-center justify-center text-xs font-bold text-cyan-300">
+            <div className="w-8 h-8 rounded-full overflow-hidden border border-[#00F5D4]/50 flex-shrink-0 bg-cyan-950 flex items-center justify-center text-xs font-bold text-cyan-300 shadow-[0_0_10px_rgba(0,245,212,0.3)] group-hover/avatar:scale-105 transition-transform">
               {user?.avatar_url ? (
                 <img src={user.avatar_url} alt={user.name} className="w-full h-full object-cover" />
               ) : (
@@ -538,8 +543,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
               )}
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-medium text-zinc-200 truncate">{user?.name || 'Guest Architect'}</p>
-              <p className="text-[10px] text-zinc-500 truncate font-mono">{user?.role || 'Tap to sign in'}</p>
+              <p className="text-xs font-bold text-zinc-100 truncate group-hover/avatar:text-[#00F5D4] transition-colors">{user?.name || 'Grandmaster Architect'}</p>
+              <p className="text-[10px] text-zinc-500 truncate font-mono">[OPERATOR_PROFILE]</p>
             </div>
           </div>
 
@@ -570,14 +575,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Karma Flame Pill */}
+            {/* Operator Telemetry Streak Pill */}
             <button
               type="button"
-              onClick={() => setIsKarmaModalOpen(true)}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-mono font-semibold"
+              onClick={() => openOperatorProfile()}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono font-semibold hover:bg-emerald-500/20 hover:border-emerald-500/50 shadow-[0_0_10px_rgba(0,245,212,0.15)] transition-all cursor-pointer"
+              title="Open Operator Telemetry Profile"
             >
-              <Flame className="w-3.5 h-3.5 fill-amber-400" />
-              <span>{karma.streak_days}d</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px_#00F5D4]" />
+              <span>STREAK: {karma.streak_days}D</span>
             </button>
 
             {/* Custom System Hub Trigger */}
@@ -682,11 +688,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
           <button
             type="button"
-            onClick={() => setIsKarmaModalOpen(true)}
-            className="flex flex-col items-center gap-1 p-2 rounded-xl text-zinc-500 hover:text-amber-400 transition-colors"
+            onClick={() => openOperatorProfile()}
+            className="flex flex-col items-center gap-1 p-2 rounded-xl text-zinc-500 hover:text-[#00F5D4] transition-colors"
           >
-            <Flame className="w-5 h-5 text-amber-400" />
-            <span className="text-[10px]">Karma</span>
+            <Activity className="w-5 h-5 text-[#00F5D4]" />
+            <span className="text-[10px]">Telemetry</span>
           </button>
         </nav>
       </div>
@@ -702,6 +708,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Dynamic Entity Creation Protocol Modal */}
       <DynamicEntityModal />
+
+      {/* [OPERATOR_PROFILE] Telemetry Modal */}
+      <OperatorProfileModal />
     </div>
   );
 }

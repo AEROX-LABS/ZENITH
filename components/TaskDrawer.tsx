@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { Priority, Task } from '@/types';
+import { TacticalTimeSlider } from '@/components/TacticalTimeSlider';
 
 const PRIORITY_OPTIONS: { value: Priority; label: string; color: string }[] = [
   { value: 'p1', label: 'P1 Urgent', color: '#ff0055' },
@@ -288,18 +289,12 @@ function TaskDrawerContent({ task }: { task: Task }) {
                 />
               </div>
 
-              {/* Hard External Deadline input */}
-              <div>
-                <span className="text-zinc-400 block mb-1 font-mono flex items-center gap-1">
-                  <Clock className="w-3 h-3 text-[#ff0055]" />
-                  Hard Deadline
-                </span>
-                <input
-                  type="text"
+              {/* Tactical 24-Hour Time Slider (Continuous Magnetic Slider) */}
+              <div className="col-span-1 sm:col-span-2">
+                <TacticalTimeSlider
                   value={task.deadline || ''}
-                  onChange={(e) => updateTask(task.id, { deadline: e.target.value || null })}
-                  placeholder="e.g. Friday 5pm, EOD"
-                  className="w-full bg-[#12131a] border border-white/10 rounded-lg px-2.5 py-1.5 text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-cyan-500/50 font-mono"
+                  onChange={(val) => updateTask(task.id, { deadline: val || null })}
+                  label="TACTICAL TIME SLIDER // DEADLINE"
                 />
               </div>
             </div>

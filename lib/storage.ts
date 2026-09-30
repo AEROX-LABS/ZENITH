@@ -376,14 +376,14 @@ export const INITIAL_TASKS: Task[] = [
     workspace_id: '81db2b29-fc5c-4d37-8ffc-991f8c4749f7',
     project_id: 'proj_sprint',
     section_id: 'sec_sp_dev',
-    title: 'Construct Karma Streak Engine & 7-Day Velocity Chart',
-    description: 'Novice to Grandmaster tier ranks with daily/weekly target progress meters and glowing flame badge.',
+    title: 'Deploy Operator Profile Telemetry & Consistency Matrix',
+    description: '365-day consistency heatmap, 7-day velocity Framer Motion graph, and unbroken streak telemetry.',
     priority: 'p1',
     completed: false,
     due_date: todayStr,
-    deadline: 'Tonight',
+    deadline: '20:00',
     parent_id: null,
-    labels: ['Karma', 'Gamification'],
+    labels: ['Telemetry', 'Operator'],
     assignee_id: 'usr_aria',
     order: 0,
     comments: [],
@@ -445,8 +445,8 @@ function generateInitialKarmaHistory(): { date: string; count: number }[] {
 }
 
 export const INITIAL_KARMA: KarmaProfile = {
-  points: 1240, // Specialist Rank (500 - 1499)
-  streak_days: 7, // Active 7-day flame streak!
+  points: 1240,
+  streak_days: 9, // Active 9-day streak!
   daily_goal: 5,
   weekly_goal: 25,
   history: generateInitialKarmaHistory(),
