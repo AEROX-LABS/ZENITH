@@ -12,12 +12,16 @@ import {
   ViewMode, 
   Priority,
   Workspace,
-  CustomTemplate
+  WorkspaceMember,
+  CustomTemplate,
+  LabelItem
 } from '@/types';
 import { 
   storage, 
   INITIAL_KARMA, 
   TEAM_PROFILES,
+  INITIAL_OPERATIVES,
+  INITIAL_LABELS,
 } from '@/lib/storage';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { formatDate } from '@/lib/parser';
@@ -39,6 +43,7 @@ export interface AppContextType {
   tasks: Task[];
   projects: Project[];
   sections: Section[];
+  labels: LabelItem[];
   karma: KarmaProfile;
   user: UserProfile | null;
   profiles: UserProfile[];
@@ -51,11 +56,30 @@ export interface AppContextType {
   currentProject: Project | null;
   currentWorkspace: Workspace | null;
   
-  // Workspaces
+  // Workspaces & Multiplayer Members
   workspaces: Workspace[];
   createWorkspace: (workspace: Partial<Workspace>) => Promise<Workspace>;
   isCreateWorkspaceOpen: boolean;
   setIsCreateWorkspaceOpen: (open: boolean) => void;
+  workspaceMembers: WorkspaceMember[];
+  operatives: UserProfile[];
+  addOperativeToWorkspace: (operativeId: string, workspaceId?: string) => Promise<boolean>;
+  shareSystemWithOperative: (operativeId: string, templateId?: string) => Promise<boolean>;
+
+  // Global Radar
+  isGlobalRadarOpen: boolean;
+  setIsGlobalRadarOpen: (open: boolean) => void;
+  openGlobalRadar: () => void;
+
+  // Dynamic Entity Creation Protocol
+  isEntityModalOpen: boolean;
+  setIsEntityModalOpen: (open: boolean) => void;
+  entityModalTab: 'project' | 'label' | 'assignee';
+  setEntityModalTab: (tab: 'project' | 'label' | 'assignee') => void;
+  openEntityModal: (tab?: 'project' | 'label' | 'assignee') => void;
+  createLabel: (label: Partial<LabelItem>) => Promise<LabelItem>;
+  deleteLabel: (labelId: string) => Promise<void>;
+  createAssignee: (assignee: { name: string; email: string; role?: string; avatar_url?: string }) => Promise<UserProfile>;
   
   // Selection & Search & Filter
   selectedTaskId: string | null;
@@ -134,10 +158,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
+  const [labels, setLabels] = useState<LabelItem[]>(INITIAL_LABELS);
   const [karma, setKarma] = useState<KarmaProfile>(INITIAL_KARMA);
   const [user, setUserState] = useState<UserProfile | null>(null);
   const [profiles, setProfiles] = useState<UserProfile[]>(TEAM_PROFILES);
   const [customTemplates, setCustomTemplates] = useState<CustomTemplate[]>([]);
+
+  // Multiplayer Networking & Workspace Members
+  const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMember[]>([]);
+  const [operatives, setOperatives] = useState<UserProfile[]>(INITIAL_OPERATIVES);
+  const [isGlobalRadarOpen, setIsGlobalRadarOpen] = useState(false);
+
+  // Dynamic Entity Creation Protocol Modal
+  const [isEntityModalOpen, setIsEntityModalOpen] = useState(false);
+  const [entityModalTab, setEntityModalTab] = useState<'project' | 'label' | 'assignee'>('label');
 
   // Navigation & Filtering
   const [activeView, setActiveViewState] = useState<ActiveFilterView>('today');
@@ -176,11 +210,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setWorkspaces([]);
     setProjects([]);
     setSections([]);
+    setLabels(INITIAL_LABELS);
     setCustomTemplates([]);
+    setWorkspaceMembers([]);
+    setOperatives(INITIAL_OPERATIVES);
     setKarma(INITIAL_KARMA);
     setSelectedTaskId(null);
     setUserState(null);
     setSessionState(null);
+    setIsGlobalRadarOpen(false);
+    setIsEntityModalOpen(false);
 
     // 2. Wipe all browser storage (localStorage and sessionStorage)
     storage.clearAll();
@@ -213,7 +252,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [wipeAllClientState]);
 
-  // Strict RLS query enforcement for loading user data
+  // Strict RLS query enforcement for loading user data & network operatives
   const loadUserDataFromSupabase = useCallback(async (userId: string) => {
     if (!isSupabaseConfigured || !userId) return;
 
@@ -275,6 +314,49 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (!tmplError && tmplData) {
         setCustomTemplates(tmplData as CustomTemplate[]);
       }
+
+      // 6. Fetch workspace members
+      const { data: memData, error: memError } = await supabase
+        .from('workspace_members')
+        .select('*');
+      if (!memError && memData && memData.length > 0) {
+        setWorkspaceMembers(memData as WorkspaceMember[]);
+      }
+
+      // 7. Fetch operatives from profiles table
+      const { data: profData, error: profError } = await supabase
+        .from('profiles')
+        .select('*');
+      if (!profError && profData && profData.length > 0) {
+        const existingIds = new Set(profData.map(p => p.id));
+        const mergedOperatives = [
+          ...profData as UserProfile[],
+          ...INITIAL_OPERATIVES.filter(o => !existingIds.has(o.id)),
+        ];
+        setOperatives(mergedOperatives);
+        setProfiles(mergedOperatives);
+      }
+
+      // 8. Fetch user labels
+      const { data: labelData, error: labelError } = await supabase
+        .from('labels')
+        .select('*')
+        .eq('user_id', userId);
+      if (!labelError && labelData && labelData.length > 0) {
+        setLabels(labelData as LabelItem[]);
+      }
+
+      // Sync active user to profiles table for networking discovery
+      const stored = storage.getUser();
+      if (stored) {
+        await supabase.from('profiles').upsert([{
+          id: stored.id,
+          name: stored.name,
+          email: stored.email,
+          avatar_url: stored.avatar_url || null,
+          role: stored.role || 'Grandmaster Architect',
+        }]);
+      }
     } catch (err) {
       console.warn('[SUPABASE_DATA_LOAD_FAIL]', err);
     }
@@ -333,6 +415,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             const storedCustomTemplates = storage.getCustomTemplates();
             if (storedCustomTemplates && storedCustomTemplates.length > 0) setCustomTemplates(storedCustomTemplates);
 
+            const storedMembers = storage.getWorkspaceMembers();
+            if (storedMembers && storedMembers.length > 0) setWorkspaceMembers(storedMembers);
+
+            const storedLabels = storage.getLabels();
+            if (storedLabels && storedLabels.length > 0) setLabels(storedLabels);
+
+            const storedOperatives = storage.getOperatives();
+            if (storedOperatives && storedOperatives.length > 0) {
+              setOperatives(storedOperatives);
+              setProfiles(storedOperatives);
+            }
+
             // Fetch from Supabase strictly for activeUser.id
             if (isSupabaseConfigured) {
               loadUserDataFromSupabase(activeUser.id);
@@ -343,6 +437,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             setProjects([]);
             setSections([]);
             setCustomTemplates([]);
+            setWorkspaceMembers([]);
           }
 
           if (typeof window !== 'undefined' && window.location.pathname.startsWith('/workspace/')) {
@@ -432,6 +527,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     storage.setCustomTemplates(customTemplates);
   }, [customTemplates, isHydrated, user]);
 
+  useEffect(() => {
+    if (!isHydrated || !user) return;
+    storage.setWorkspaceMembers(workspaceMembers);
+  }, [workspaceMembers, isHydrated, user]);
+
+  useEffect(() => {
+    if (!isHydrated || !user) return;
+    storage.setOperatives(operatives);
+  }, [operatives, isHydrated, user]);
+
+  useEffect(() => {
+    if (!isHydrated || !user) return;
+    storage.setLabels(labels);
+  }, [labels, isHydrated, user]);
+
   // Keyboard shortcut listener: Cmd/Ctrl + K opens Quick Add
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -445,13 +555,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setIsKarmaModalOpen(false);
         setIsAuthModalOpen(false);
         setIsTutorialOpen(false);
+        setIsGlobalRadarOpen(false);
+        setIsEntityModalOpen(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Supabase Real-time listener for tasks and workspaces with user_id isolation
+  // Supabase Real-time listener for tasks, workspaces, workspace_members, and labels
   useEffect(() => {
     if (!isSupabaseConfigured || !user?.id) return;
 
@@ -524,10 +636,47 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         )
         .subscribe();
 
+      const memberChannel = supabase
+        .channel(`aerox_members_${currentUserId}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'workspace_members' },
+          (payload) => {
+            if (payload.eventType === 'INSERT') {
+              const newMem = payload.new as WorkspaceMember;
+              setWorkspaceMembers(prev => prev.some(m => m.id === newMem.id) ? prev : [...prev, newMem]);
+            } else if (payload.eventType === 'DELETE') {
+              const delMem = payload.old as { id: string };
+              setWorkspaceMembers(prev => prev.filter(m => m.id !== delMem.id));
+            }
+          }
+        )
+        .subscribe();
+
+      const labelChannel = supabase
+        .channel(`aerox_labels_${currentUserId}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'labels' },
+          (payload) => {
+            if (payload.eventType === 'INSERT') {
+              const newLbl = payload.new as LabelItem;
+              if (newLbl.user_id && newLbl.user_id !== currentUserId) return;
+              setLabels(prev => prev.some(l => l.id === newLbl.id) ? prev : [...prev, newLbl]);
+            } else if (payload.eventType === 'DELETE') {
+              const delLbl = payload.old as { id: string };
+              setLabels(prev => prev.filter(l => l.id !== delLbl.id));
+            }
+          }
+        )
+        .subscribe();
+
       return () => {
         supabase.removeChannel(taskChannel);
         supabase.removeChannel(wsChannel);
         supabase.removeChannel(tmplChannel);
+        supabase.removeChannel(memberChannel);
+        supabase.removeChannel(labelChannel);
       };
     } catch (err) {
       console.warn('Realtime channel subscription error:', err);
@@ -603,6 +752,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setIsSystemBuilderOpen(true);
   }, []);
 
+  const openGlobalRadar = useCallback(() => {
+    setIsGlobalRadarOpen(true);
+  }, []);
+
+  const openEntityModal = useCallback((tab: 'project' | 'label' | 'assignee' = 'label') => {
+    setEntityModalTab(tab);
+    setIsEntityModalOpen(true);
+  }, []);
+
   // Synchronized activeView updater
   const setActiveView = useCallback((view: ActiveFilterView) => {
     setActiveViewState(view);
@@ -618,6 +776,101 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const currentWorkspace = useMemo(() => {
     return workspaces.find(w => w.id === activeView) || null;
   }, [workspaces, activeView]);
+
+  // Dynamic Entity: Create Label
+  const createLabel = useCallback(async (labelData: Partial<LabelItem>): Promise<LabelItem> => {
+    const activeUserId = user?.id || null;
+    const newLabel: LabelItem = {
+      id: `lbl_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+      user_id: activeUserId,
+      name: labelData.name?.trim().toUpperCase() || 'NEW_TAG',
+      color: labelData.color || '#00F0FF',
+      created_at: new Date().toISOString(),
+    };
+
+    setLabels(prev => {
+      const updated = [...prev, newLabel];
+      storage.setLabels(updated);
+      return updated;
+    });
+
+    fireConfetti();
+    showToast(`[SYS_ENTITY] LABEL "${newLabel.name}" COMMITTED TO KERNEL!`, 'success');
+
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('labels').insert([{
+          id: newLabel.id,
+          user_id: activeUserId,
+          name: newLabel.name,
+          color: newLabel.color,
+          created_at: newLabel.created_at,
+        }]);
+      } catch (err) {
+        console.warn('Supabase label insert caught:', err);
+      }
+    }
+
+    return newLabel;
+  }, [user?.id, fireConfetti, showToast]);
+
+  const deleteLabel = useCallback(async (labelId: string) => {
+    const activeUserId = user?.id || null;
+    setLabels(prev => {
+      const updated = prev.filter(l => l.id !== labelId);
+      storage.setLabels(updated);
+      return updated;
+    });
+    showToast('[SYS_ENTITY] LABEL REMOVED', 'info');
+
+    if (isSupabaseConfigured) {
+      try {
+        let q = supabase.from('labels').delete().eq('id', labelId);
+        if (activeUserId) q = q.eq('user_id', activeUserId);
+        await q;
+      } catch (err) {
+        console.warn('Supabase label delete error:', err);
+      }
+    }
+  }, [user?.id, showToast]);
+
+  // Dynamic Entity: Create Assignee
+  const createAssignee = useCallback(async (data: { name: string; email: string; role?: string; avatar_url?: string }): Promise<UserProfile> => {
+    const newOperative: UserProfile = {
+      id: `usr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+      name: data.name.trim(),
+      email: data.email.trim(),
+      role: data.role?.trim() || 'Operative',
+      avatar_url: data.avatar_url || `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop&crop=face`,
+    };
+
+    setOperatives(prev => {
+      const updated = [...prev, newOperative];
+      storage.setOperatives(updated);
+      return updated;
+    });
+    setProfiles(prev => [...prev, newOperative]);
+
+    fireConfetti();
+    showToast(`[SYS_ENTITY] ASSIGNEE "${newOperative.name.toUpperCase()}" REGISTERED!`, 'success');
+
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('profiles').insert([{
+          id: newOperative.id,
+          name: newOperative.name,
+          email: newOperative.email,
+          role: newOperative.role,
+          avatar_url: newOperative.avatar_url,
+          created_at: new Date().toISOString(),
+        }]);
+      } catch (err) {
+        console.warn('Supabase profile insert caught:', err);
+      }
+    }
+
+    return newOperative;
+  }, [fireConfetti, showToast]);
 
   // Actions with strict RLS user_id enforcement
   const createWorkspace = useCallback(async (workspaceData: Partial<Workspace>): Promise<Workspace> => {
@@ -652,6 +905,97 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     return newWs;
   }, [user?.id]);
+
+  // Multiplayer: Add Operative to Workspace
+  const addOperativeToWorkspace = useCallback(async (operativeId: string, workspaceId?: string): Promise<boolean> => {
+    const targetWsId = workspaceId || currentWorkspace?.id || workspaces[0]?.id;
+    if (!targetWsId) {
+      showToast('[SYS_ERR] NO TARGET WORKSPACE SELECTED', 'error');
+      return false;
+    }
+
+    // Check if operative already a member
+    const alreadyMember = workspaceMembers.some(
+      m => m.workspace_id === targetWsId && m.user_id === operativeId
+    );
+    if (alreadyMember) {
+      showToast('[SYS_INFO] OPERATIVE ALREADY LINKED TO WORKSPACE', 'info');
+      return false;
+    }
+
+    const operativeProfile = operatives.find(o => o.id === operativeId) || profiles.find(p => p.id === operativeId);
+    const newMember: WorkspaceMember = {
+      id: crypto.randomUUID(),
+      workspace_id: targetWsId,
+      user_id: operativeId,
+      role: 'Architect',
+      joined_at: new Date().toISOString(),
+      profile: operativeProfile,
+    };
+
+    setWorkspaceMembers(prev => [...prev, newMember]);
+    fireConfetti();
+    showToast(`[SYS_LINK] ${operativeProfile?.name?.toUpperCase() || 'OPERATIVE'} GRANTED WORKSPACE ACCESS`, 'success');
+
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('workspace_members').insert([{
+          id: newMember.id,
+          workspace_id: newMember.workspace_id,
+          user_id: newMember.user_id,
+          role: newMember.role,
+          joined_at: newMember.joined_at,
+        }]);
+      } catch (err) {
+        console.warn('Supabase member link error', err);
+      }
+    }
+
+    return true;
+  }, [currentWorkspace, workspaces, workspaceMembers, operatives, profiles, showToast, fireConfetti]);
+
+  // Multiplayer: Share System Blueprint with Operative
+  const shareSystemWithOperative = useCallback(async (operativeId: string, templateId?: string): Promise<boolean> => {
+    const targetOperative = operatives.find(o => o.id === operativeId) || profiles.find(p => p.id === operativeId);
+    if (!targetOperative) {
+      showToast('[SYS_ERR] TARGET OPERATIVE UNRESOLVED', 'error');
+      return false;
+    }
+
+    const templateToShare = templateId 
+      ? customTemplates.find(t => t.id === templateId)
+      : (customTemplates[0] || null);
+
+    if (!templateToShare) {
+      showToast('[SYS_ERR] NO CUSTOM TEMPLATE FOUND TO TRANSMIT', 'error');
+      return false;
+    }
+
+    const clonedTemplate: CustomTemplate = {
+      id: `tmpl_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+      user_id: operativeId,
+      name: `${templateToShare.name} (Shared)`,
+      description: templateToShare.description || 'Shared system blueprint via Global Radar',
+      icon: templateToShare.icon || 'Layers',
+      category: templateToShare.category || 'Shared',
+      color: templateToShare.color || '#00f0ff',
+      system_structure: templateToShare.system_structure,
+      created_at: new Date().toISOString(),
+    };
+
+    fireConfetti();
+    showToast(`[SYS_TRANSMIT] SYSTEM "${templateToShare.name}" TRANSMITTED TO ${targetOperative.name.toUpperCase()}!`, 'success');
+
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('custom_templates').insert([clonedTemplate]);
+      } catch (err) {
+        console.warn('Supabase template share error', err);
+      }
+    }
+
+    return true;
+  }, [operatives, profiles, customTemplates, showToast, fireConfetti]);
 
   const addTask = useCallback(async (taskData: Partial<Task>): Promise<Task> => {
     const activeUserId = user?.id || null;
@@ -1185,6 +1529,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         tasks,
         projects,
         sections,
+        labels,
         karma,
         user,
         profiles,
@@ -1198,6 +1543,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         createWorkspace,
         isCreateWorkspaceOpen,
         setIsCreateWorkspaceOpen,
+        workspaceMembers,
+        operatives,
+        addOperativeToWorkspace,
+        shareSystemWithOperative,
+        isGlobalRadarOpen,
+        setIsGlobalRadarOpen,
+        openGlobalRadar,
+        isEntityModalOpen,
+        setIsEntityModalOpen,
+        entityModalTab,
+        setEntityModalTab,
+        openEntityModal,
+        createLabel,
+        deleteLabel,
+        createAssignee,
         selectedTaskId,
         setSelectedTaskId,
         selectedTask,

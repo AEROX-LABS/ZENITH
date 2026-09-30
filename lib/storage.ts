@@ -1,19 +1,67 @@
-import { Task, Project, Section, KarmaProfile, UserProfile, Workspace, CustomTemplate } from '@/types';
+import { Task, Project, Section, KarmaProfile, UserProfile, Workspace, CustomTemplate, WorkspaceMember, LabelItem } from '@/types';
 import { formatDate } from '@/lib/parser';
 import { INITIAL_CUSTOM_TEMPLATES } from '@/lib/templates';
 
 const STORAGE_KEYS = {
   WORKSPACES: 'aerox_zenith_workspaces_v1',
+  WORKSPACE_MEMBERS: 'aerox_zenith_workspace_members_v1',
   TASKS: 'aerox_zenith_tasks_v1',
   PROJECTS: 'aerox_zenith_projects_v1',
   SECTIONS: 'aerox_zenith_sections_v1',
   KARMA: 'aerox_zenith_karma_v1',
   USER: 'aerox_zenith_user_v1',
   PROFILES: 'aerox_zenith_profiles_v1',
+  OPERATIVES: 'aerox_zenith_operatives_v1',
   CUSTOM_TEMPLATES: 'aerox_zenith_custom_templates_v1',
+  LABELS: 'aerox_zenith_labels_v1',
 };
 
 export { INITIAL_CUSTOM_TEMPLATES };
+
+export const INITIAL_LABELS: LabelItem[] = [
+  { id: 'lbl_critical', name: 'Critical', color: '#ff0055', created_at: new Date().toISOString() },
+  { id: 'lbl_p1', name: 'P1', color: '#ff006e', created_at: new Date().toISOString() },
+  { id: 'lbl_infra', name: 'Infra', color: '#00f0ff', created_at: new Date().toISOString() },
+  { id: 'lbl_hotfix', name: 'Hotfix', color: '#f59e0b', created_at: new Date().toISOString() },
+];
+
+export const INITIAL_OPERATIVES: UserProfile[] = [
+  {
+    id: 'usr_aria',
+    name: 'Aria Stark',
+    email: 'aria@aerox.dev',
+    avatar_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80',
+    role: 'Cybernetics Lead',
+  },
+  {
+    id: 'usr_kai',
+    name: 'Kai Tanaka',
+    email: 'kai@aerox.dev',
+    avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
+    role: 'Neural Interface Specialist',
+  },
+  {
+    id: 'usr_elena',
+    name: 'Dr. Elena Rostova',
+    email: 'elena@aerox.dev',
+    avatar_url: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&q=80',
+    role: 'Design Systems Architect',
+  },
+  {
+    id: 'usr_devon',
+    name: 'Devon Vance',
+    email: 'devon@aerox.dev',
+    avatar_url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80',
+    role: 'Kernel Security Specialist',
+  },
+  {
+    id: 'usr_sora',
+    name: 'Sora Hayashi',
+    email: 'sora@aerox.dev',
+    avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+    role: 'Quantum Pipeline Engineer',
+  },
+];
 
 export const INITIAL_USER: UserProfile = {
   id: 'usr_zenith_master',
@@ -566,6 +614,60 @@ export const storage = {
       localStorage.setItem(STORAGE_KEYS.CUSTOM_TEMPLATES, JSON.stringify(templates));
     } catch (e) {
       console.warn('LocalStorage setCustomTemplates failed', e);
+    }
+  },
+
+  getWorkspaceMembers: (): WorkspaceMember[] => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.WORKSPACE_MEMBERS);
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  },
+  setWorkspaceMembers: (members: WorkspaceMember[]) => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(STORAGE_KEYS.WORKSPACE_MEMBERS, JSON.stringify(members));
+    } catch (e) {
+      console.warn('LocalStorage setWorkspaceMembers failed', e);
+    }
+  },
+
+  getOperatives: (): UserProfile[] => {
+    if (typeof window === 'undefined') return INITIAL_OPERATIVES;
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.OPERATIVES);
+      return data ? JSON.parse(data) : INITIAL_OPERATIVES;
+    } catch {
+      return INITIAL_OPERATIVES;
+    }
+  },
+  setOperatives: (operatives: UserProfile[]) => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(STORAGE_KEYS.OPERATIVES, JSON.stringify(operatives));
+    } catch (e) {
+      console.warn('LocalStorage setOperatives failed', e);
+    }
+  },
+
+  getLabels: (): LabelItem[] => {
+    if (typeof window === 'undefined') return INITIAL_LABELS;
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.LABELS);
+      return data ? JSON.parse(data) : INITIAL_LABELS;
+    } catch {
+      return INITIAL_LABELS;
+    }
+  },
+  setLabels: (labels: LabelItem[]) => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(STORAGE_KEYS.LABELS, JSON.stringify(labels));
+    } catch (e) {
+      console.warn('LocalStorage setLabels failed', e);
     }
   },
 };

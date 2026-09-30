@@ -85,15 +85,47 @@ CREATE TABLE IF NOT EXISTS public.custom_templates (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 8. Enable Row Level Security (RLS) on all tables
+-- 8. Profiles Table (Global Operatives Directory)
+CREATE TABLE IF NOT EXISTS public.profiles (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    avatar_url TEXT,
+    role TEXT NOT NULL DEFAULT 'Operative',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 9. Workspace Members Table (Multiplayer Collaboration)
+CREATE TABLE IF NOT EXISTS public.workspace_members (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL REFERENCES public.workspaces(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'member',
+    joined_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    UNIQUE(workspace_id, user_id)
+);
+
+-- 10. Labels Table (Tags & Categorization)
+CREATE TABLE IF NOT EXISTS public.labels (
+    id TEXT PRIMARY KEY,
+    user_id TEXT, -- references auth.users(id)
+    name TEXT NOT NULL,
+    color TEXT NOT NULL DEFAULT '#00f0ff',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 11. Enable Row Level Security (RLS) on all tables
 ALTER TABLE public.workspaces ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sections ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.karma_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.custom_templates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.workspace_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.labels ENABLE ROW LEVEL SECURITY;
 
--- 9. Strict User-Owned Row Level Security Policies
+-- 12. Strict User-Owned Row Level Security Policies
 -- Workspaces
 CREATE POLICY "Users can manage own workspaces" 
     ON public.workspaces FOR ALL 
@@ -130,10 +162,42 @@ CREATE POLICY "Users can manage own custom templates"
     USING (auth.uid() IS NULL OR user_id = auth.uid()::text OR user_id IS NULL)
     WITH CHECK (auth.uid() IS NULL OR user_id = auth.uid()::text OR user_id IS NULL);
 
--- 10. Add tables to Supabase Realtime Publication
+-- Profiles (Public read for networking discovery, write only own)
+CREATE POLICY "Anyone can view profiles for networking"
+    ON public.profiles FOR SELECT
+    USING (true);
+
+CREATE POLICY "Users can update their own profile"
+    ON public.profiles FOR ALL
+    USING (auth.uid() IS NULL OR id = auth.uid()::text)
+    WITH CHECK (auth.uid() IS NULL OR id = auth.uid()::text);
+
+-- Workspace Members (Read for members, insert for active workspace)
+CREATE POLICY "Members can view workspace members"
+    ON public.workspace_members FOR SELECT
+    USING (true);
+
+CREATE POLICY "Users can add workspace members"
+    ON public.workspace_members FOR INSERT
+    WITH CHECK (true);
+
+CREATE POLICY "Users can remove workspace members"
+    ON public.workspace_members FOR DELETE
+    USING (true);
+
+-- Labels
+CREATE POLICY "Users can manage own labels" 
+    ON public.labels FOR ALL 
+    USING (auth.uid() IS NULL OR user_id = auth.uid()::text OR user_id IS NULL)
+    WITH CHECK (auth.uid() IS NULL OR user_id = auth.uid()::text OR user_id IS NULL);
+
+-- 13. Add tables to Supabase Realtime Publication
 ALTER PUBLICATION supabase_realtime ADD TABLE public.workspaces;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.projects;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.sections;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.tasks;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.karma_profiles;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.custom_templates;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.profiles;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.workspace_members;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.labels;

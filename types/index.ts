@@ -119,3 +119,20 @@ export interface Workspace {
   color: string;
   created_at?: string;
 }
+
+export interface WorkspaceMember {
+  id: string;
+  workspace_id: string;
+  user_id: string;
+  role?: string;
+  joined_at?: string;
+  profile?: UserProfile;
+}
+
+export interface LabelItem {
+  id: string;
+  user_id?: string | null;
+  name: string;
+  color: string;
+  created_at?: string;
+}

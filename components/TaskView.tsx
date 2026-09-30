@@ -19,7 +19,7 @@ import {
   User,
   Users
 } from 'lucide-react';
-import { Priority } from '@/types';
+import { Priority, UserProfile } from '@/types';
 import { useApp } from '@/context/AppContext';
 import { TaskItem } from './TaskItem';
 import { KanbanBoard } from './KanbanBoard';
@@ -36,6 +36,10 @@ export function TaskView() {
     currentProject,
     currentWorkspace,
     workspaces,
+    workspaceMembers,
+    operatives,
+    user,
+    openGlobalRadar,
     profiles,
     openAddTaskModal,
     searchQuery,
@@ -52,6 +56,40 @@ export function TaskView() {
   const [newSectionName, setNewSectionName] = useState('');
 
   const todayStr = formatDate(new Date());
+
+  // Real authenticated members of the active workspace (purges fake dummy architects)
+  const activeWorkspaceMembers = useMemo(() => {
+    if (!currentWorkspace) return [];
+    const membersForWs = workspaceMembers.filter(m => m.workspace_id === currentWorkspace.id);
+    const memberProfiles: UserProfile[] = [];
+
+    // The current authenticated user is always a member of their workspace
+    if (user) {
+      memberProfiles.push(user);
+    }
+
+    membersForWs.forEach(m => {
+      if (m.profile) {
+        if (!memberProfiles.some(p => p.id === m.profile!.id)) {
+          memberProfiles.push(m.profile);
+        }
+      } else {
+        const found = operatives.find(o => o.id === m.user_id) || profiles.find(p => p.id === m.user_id);
+        if (found && !memberProfiles.some(p => p.id === found.id)) {
+          memberProfiles.push(found);
+        } else if (!memberProfiles.some(p => p.id === m.user_id)) {
+          memberProfiles.push({
+            id: m.user_id,
+            name: `Operative ${m.user_id.slice(-4)}`,
+            email: 'operative@aerox.dev',
+            role: m.role || 'Architect',
+          });
+        }
+      }
+    });
+
+    return memberProfiles;
+  }, [currentWorkspace, workspaceMembers, user, operatives, profiles]);
 
   // Collect all unique labels for filtering
   const allLabels = useMemo(() => {
@@ -232,30 +270,36 @@ export function TaskView() {
           <div className="flex items-center gap-4 flex-wrap mt-1">
             <p className="text-xs sm:text-sm text-zinc-400">{viewInfo.subtitle}</p>
 
-            {/* Group Workspace Member Collaboration Stack */}
+            {/* Real Authenticated Workspace Members Collaboration Stack */}
             {currentWorkspace?.type === 'group' && (
               <div className="flex items-center gap-2 pl-2 border-l border-white/10">
                 <span className="text-[11px] text-zinc-500 font-mono">Members:</span>
                 <div className="flex items-center -space-x-1.5">
-                  {profiles.slice(0, 4).map((p) => (
+                  {activeWorkspaceMembers.slice(0, 4).map((p) => (
                     <div
                       key={p.id}
-                      className="w-5 h-5 rounded-full overflow-hidden border border-[#0d0e12] ring-1 ring-white/10"
+                      className="w-5 h-5 rounded-full overflow-hidden border border-[#0d0e12] ring-1 ring-cyan-400/40 bg-black flex items-center justify-center text-[9px] font-bold text-cyan-300"
                       title={`${p.name} (${p.role})`}
                     >
                       {p.avatar_url ? (
                         <img src={p.avatar_url} alt={p.name} className="w-full h-full object-cover" />
                       ) : (
-                        <div className="w-full h-full bg-purple-950 text-purple-300 flex items-center justify-center text-[9px] font-bold">
-                          {p.name[0]}
-                        </div>
+                        <span>{p.name ? p.name[0] : 'A'}</span>
                       )}
                     </div>
                   ))}
                 </div>
-                <span className="text-[10px] text-purple-400 font-mono font-semibold">
-                  {profiles.length} Architects
-                </span>
+                <button
+                  type="button"
+                  onClick={openGlobalRadar}
+                  className="text-[10px] text-cyan-400 hover:text-cyan-300 font-mono font-semibold flex items-center gap-1 hover:underline cursor-pointer transition-colors"
+                  title="Scan & Invite Operatives via Global Radar"
+                >
+                  <span>
+                    {activeWorkspaceMembers.length === 1 ? '1 Architect' : `${activeWorkspaceMembers.length} Architects`}
+                  </span>
+                  <Plus className="w-2.5 h-2.5 text-cyan-400" />
+                </button>
               </div>
             )}
           </div>

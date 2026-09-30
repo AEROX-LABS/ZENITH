@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   Check, 
   ChevronRight, 
@@ -15,6 +15,7 @@ import {
 import type { DraggableProvidedDragHandleProps } from '@hello-pangea/dnd';
 import { Task, Priority } from '@/types';
 import { useApp } from '@/context/AppContext';
+import { ReticleHUD } from '@/components/DynamicEntityModal';
 
 interface TaskItemProps {
   task: Task;
@@ -62,6 +63,10 @@ export function TaskItem({
   const [isExpanded, setIsExpanded] = useState(true);
   const [isAddingSubtask, setIsAddingSubtask] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+  const [pointerPos, setPointerPos] = useState({ x: -500, y: -500 });
+  const [isCardHovered, setIsCardHovered] = useState(false);
+  const [checkboxHovered, setCheckboxHovered] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   const pStyle = PRIORITY_STYLES[task.priority] || PRIORITY_STYLES.p4;
   const project = projects.find(p => p.id === task.project_id);
@@ -70,6 +75,21 @@ export function TaskItem({
   const hasSubtasks = subtasks.length > 0;
   const completedSubtasksCount = subtasks.filter(s => s.completed).length;
   const isGlobalView = ['today', 'upcoming', 'inbox', 'completed'].includes(activeView);
+
+  const activeColor = 
+    task.priority === 'p1' ? '#FF006E' :
+    task.priority === 'p2' ? '#F59E0B' :
+    task.priority === 'p3' ? '#00E0FF' :
+    project?.color || '#00E0FF';
+
+  const handleCardMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!cardRef.current) return;
+    const rect = cardRef.current.getBoundingClientRect();
+    setPointerPos({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    });
+  };
 
   const handleCheckboxClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -92,15 +112,27 @@ export function TaskItem({
         <div className="absolute -left-6 top-0 bottom-1/2 w-5 border-l-2 border-b-2 border-cyan-500/30 rounded-bl-lg pointer-events-none" />
       )}
 
-      {/* Main Task Row */}
+      {/* Main Task Row with Dynamic Specular Torchlight */}
       <div
+        ref={cardRef}
+        onMouseMove={handleCardMouseMove}
+        onMouseEnter={() => setIsCardHovered(true)}
+        onMouseLeave={() => setIsCardHovered(false)}
         onClick={() => setSelectedTaskId(task.id)}
-        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all duration-200 cursor-pointer ${
+        className={`relative overflow-hidden flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all duration-200 cursor-pointer ${
           task.completed
             ? 'bg-zinc-950/40 border-zinc-800/40 text-zinc-500 opacity-60'
             : 'bg-[#0d0e12]/80 hover:bg-[#13141c] border-white/5 hover:border-white/15 text-zinc-200 shadow-sm'
         } ${isSubtask ? 'text-sm py-2' : ''}`}
       >
+        {/* Dynamic Specular Torchlight Gradient Pointer-Tracking Layer */}
+        <div
+          className="absolute inset-0 pointer-events-none rounded-xl transition-opacity duration-300 z-0"
+          style={{
+            opacity: isCardHovered && !task.completed ? 1 : 0,
+            background: `radial-gradient(300px circle at ${pointerPos.x}px ${pointerPos.y}px, ${activeColor}20, transparent 70%)`,
+          }}
+        />
         {/* Drag Handle */}
         {!isSubtask && dragHandleProps && (
           <div
@@ -133,26 +165,31 @@ export function TaskItem({
           <div className="w-4" />
         ) : null}
 
-        {/* Neon Checkbox Ring */}
-        <button
-          type="button"
-          onClick={handleCheckboxClick}
-          className={`relative flex items-center justify-center w-5 h-5 rounded-full border-2 transition-all duration-200 flex-shrink-0 ${
-            task.completed
-              ? 'bg-[#00f0ff] border-[#00f0ff] text-zinc-950 shadow-[0_0_10px_rgba(0,240,255,0.6)]'
-              : `${pStyle.border} ${pStyle.bg} hover:scale-110`
-          }`}
-          title={task.completed ? 'Mark incomplete' : 'Mark complete (+10 Karma)'}
-        >
-          {task.completed ? (
-            <Check className="w-3 h-3 stroke-[3]" />
-          ) : (
-            <span className={`w-1.5 h-1.5 rounded-full ${pStyle.text} opacity-0 group-hover/task:opacity-100 transition-opacity`} />
-          )}
-        </button>
+        {/* Neon Checkbox Ring with Reticle HUD */}
+        <div className="relative z-10 flex-shrink-0">
+          <button
+            type="button"
+            onClick={handleCheckboxClick}
+            onMouseEnter={() => setCheckboxHovered(true)}
+            onMouseLeave={() => setCheckboxHovered(false)}
+            className={`relative flex items-center justify-center w-5 h-5 rounded-full border-2 transition-all duration-200 flex-shrink-0 ${
+              task.completed
+                ? 'bg-[#00f0ff] border-[#00f0ff] text-zinc-950 shadow-[0_0_10px_rgba(0,240,255,0.6)]'
+                : `${pStyle.border} ${pStyle.bg} hover:scale-110`
+            }`}
+            title={task.completed ? 'Mark incomplete' : 'Mark complete (+10 Karma)'}
+          >
+            <ReticleHUD active={checkboxHovered && !task.completed} color={activeColor} offset={-3} />
+            {task.completed ? (
+              <Check className="w-3 h-3 stroke-[3]" />
+            ) : (
+              <span className={`w-1.5 h-1.5 rounded-full ${pStyle.text} opacity-0 group-hover/task:opacity-100 transition-opacity`} />
+            )}
+          </button>
+        </div>
 
         {/* Task Content: Title & Badges */}
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 relative z-10">
           <div className="flex items-center gap-2 flex-wrap">
             <span
               className={`font-medium truncate transition-all ${
@@ -228,7 +265,7 @@ export function TaskItem({
         </div>
 
         {/* Right Metadata: Tags, Dates, Deadline, Comments, Assignee */}
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-2 flex-shrink-0 relative z-10">
           {/* Labels / Tags */}
           {task.labels && task.labels.length > 0 && (
             <div className="hidden sm:flex items-center gap-1">

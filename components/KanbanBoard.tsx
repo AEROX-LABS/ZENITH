@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   DragDropContext, 
   Droppable, 
@@ -18,11 +18,169 @@ import {
 import { Task, Section, Priority } from '@/types';
 import { useApp } from '@/context/AppContext';
 
-interface KanbanColumnData {
-  id: string;
-  title: string;
-  isDoneStage: boolean;
+interface KanbanCardProps {
+  task: Task;
+  index: number;
   tasks: Task[];
+  profiles: any[];
+  setSelectedTaskId: (id: string) => void;
+  toggleTask: (id: string) => void;
+}
+
+function KanbanCard({
+  task,
+  index,
+  tasks,
+  profiles,
+  setSelectedTaskId,
+  toggleTask,
+}: KanbanCardProps) {
+  const [pointerPos, setPointerPos] = useState({ x: -500, y: -500 });
+  const [isHovered, setIsHovered] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  const badge = PRIORITY_BADGES[task.priority] || PRIORITY_BADGES.p4;
+  const assignee = profiles.find(p => p.id === task.assignee_id);
+  const subtasks = tasks.filter(t => t.parent_id === task.id);
+  const completedSubtasks = subtasks.filter(s => s.completed).length;
+
+  const activeColor = 
+    task.priority === 'p1' ? '#FF006E' :
+    task.priority === 'p2' ? '#F59E0B' :
+    task.priority === 'p3' ? '#00E0FF' : '#00E0FF';
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!cardRef.current) return;
+    const rect = cardRef.current.getBoundingClientRect();
+    setPointerPos({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    });
+  };
+
+  return (
+    <Draggable key={task.id} draggableId={task.id} index={index}>
+      {(dragProvided, dragSnapshot) => (
+        <div
+          ref={(node) => {
+            dragProvided.innerRef(node);
+            (cardRef as any).current = node;
+          }}
+          {...dragProvided.draggableProps}
+          {...dragProvided.dragHandleProps}
+          onMouseMove={handleMouseMove}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+          onClick={() => setSelectedTaskId(task.id)}
+          className={`relative overflow-hidden p-3 rounded-xl border transition-all cursor-pointer select-none ${
+            dragSnapshot.isDragging
+              ? 'bg-[#181924] border-cyan-400 shadow-2xl scale-[1.02] rotate-1 z-50'
+              : 'bg-black/40 hover:bg-white/5 border-white/5 hover:border-white/15'
+          } ${task.completed ? 'opacity-60 line-through' : ''}`}
+        >
+          {/* Dynamic Specular Torchlight Gradient */}
+          <div
+            className="absolute inset-0 pointer-events-none rounded-xl transition-opacity duration-300 z-0"
+            style={{
+              opacity: isHovered && !task.completed ? 1 : 0,
+              background: `radial-gradient(300px circle at ${pointerPos.x}px ${pointerPos.y}px, ${activeColor}20, transparent 70%)`,
+            }}
+          />
+
+          <div className="relative z-10">
+            {/* Card Top Row: Priority & Quick Toggle */}
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <span
+                className={`text-[10px] font-mono font-semibold uppercase px-1.5 py-0.5 rounded border ${badge.border} ${badge.text} ${badge.bg}`}
+              >
+                {task.priority.toUpperCase()}
+              </span>
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleTask(task.id);
+                }}
+                className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${
+                  task.completed
+                    ? 'bg-cyan-400 border-cyan-400 text-zinc-950'
+                    : 'border-zinc-700 hover:border-cyan-400'
+                }`}
+              >
+                {task.completed && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+              </button>
+            </div>
+
+            {/* Card Title */}
+            <h4 className="text-sm font-medium text-zinc-200 leading-snug line-clamp-2">
+              {task.title}
+            </h4>
+
+            {/* Card Description Preview */}
+            {task.description && (
+              <p className="text-xs text-zinc-400 line-clamp-2 mt-1 font-normal">
+                {task.description}
+              </p>
+            )}
+
+            {/* Subtask count */}
+            {subtasks.length > 0 && (
+              <div className="mt-2 flex items-center gap-1.5 text-[11px] text-cyan-400 font-mono">
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                <span>Subtasks: {completedSubtasks}/{subtasks.length}</span>
+              </div>
+            )}
+
+            {/* Card Bottom Meta */}
+            <div className="flex items-center justify-between pt-2.5 mt-2 border-t border-white/5 text-[11px] text-zinc-500">
+              <div className="flex items-center gap-2">
+                {task.due_date && (
+                  <span className="flex items-center gap-1 text-zinc-400">
+                    <Calendar className="w-3 h-3 text-cyan-400" />
+                    <span>{task.due_date}</span>
+                  </span>
+                )}
+
+                {task.deadline && (
+                  <span className="flex items-center gap-1 text-[#ff0055]">
+                    <Clock className="w-3 h-3" />
+                    <span className="font-mono">{task.deadline}</span>
+                  </span>
+                )}
+
+                {task.comments?.length > 0 && (
+                  <span className="flex items-center gap-1">
+                    <MessageSquare className="w-3 h-3" />
+                    <span>{task.comments.length}</span>
+                  </span>
+                )}
+              </div>
+
+              {assignee && (
+                <div
+                  className="w-5 h-5 rounded-full overflow-hidden border border-cyan-500/40"
+                  title={`Assigned to ${assignee.name}`}
+                >
+                  {assignee.avatar_url ? (
+                    <img
+                      src={assignee.avatar_url}
+                      alt={assignee.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-cyan-950 text-cyan-400 flex items-center justify-center text-[10px] font-bold">
+                      {assignee.name[0]}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </Draggable>
+  );
 }
 
 const PRIORITY_BADGES: Record<Priority, { border: string; text: string; bg: string }> = {
@@ -31,6 +189,13 @@ const PRIORITY_BADGES: Record<Priority, { border: string; text: string; bg: stri
   p3: { border: 'border-[#00f0ff]/50', text: 'text-[#00f0ff]', bg: 'bg-[#00f0ff]/10' },
   p4: { border: 'border-zinc-700/50', text: 'text-zinc-400', bg: 'bg-zinc-800/30' },
 };
+
+interface KanbanColumnData {
+  id: string;
+  title: string;
+  isDoneStage: boolean;
+  tasks: Task[];
+}
 
 export function KanbanBoard({ tasks }: { tasks: Task[] }) {
   const { 
@@ -194,119 +359,17 @@ export function KanbanBoard({ tasks }: { tasks: Task[] }) {
                     snapshot.isDraggingOver ? 'bg-cyan-950/20 ring-1 ring-cyan-500/30' : ''
                   }`}
                 >
-                  {column.tasks.map((task, index) => {
-                    const badge = PRIORITY_BADGES[task.priority] || PRIORITY_BADGES.p4;
-                    const assignee = profiles.find(p => p.id === task.assignee_id);
-                    const subtasks = tasks.filter(t => t.parent_id === task.id);
-                    const completedSubtasks = subtasks.filter(s => s.completed).length;
-
-                    return (
-                      <Draggable key={task.id} draggableId={task.id} index={index}>
-                        {(dragProvided, dragSnapshot) => (
-                          <div
-                            ref={dragProvided.innerRef}
-                            {...dragProvided.draggableProps}
-                            {...dragProvided.dragHandleProps}
-                            onClick={() => setSelectedTaskId(task.id)}
-                            className={`p-3 rounded-xl border transition-all cursor-pointer select-none ${
-                              dragSnapshot.isDragging
-                                ? 'bg-[#181924] border-cyan-400 shadow-2xl scale-[1.02] rotate-1 z-50'
-                                : 'bg-black/40 hover:bg-white/5 border-white/5 hover:border-white/15'
-                            } ${task.completed ? 'opacity-60 line-through' : ''}`}
-                          >
-                            {/* Card Top Row: Priority & Quick Toggle */}
-                            <div className="flex items-center justify-between gap-2 mb-2">
-                              <span
-                                className={`text-[10px] font-mono font-semibold uppercase px-1.5 py-0.5 rounded border ${badge.border} ${badge.text} ${badge.bg}`}
-                              >
-                                {task.priority.toUpperCase()}
-                              </span>
-
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  toggleTask(task.id);
-                                }}
-                                className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${
-                                  task.completed
-                                    ? 'bg-cyan-400 border-cyan-400 text-zinc-950'
-                                    : 'border-zinc-700 hover:border-cyan-400'
-                                }`}
-                              >
-                                {task.completed && <Check className="w-2.5 h-2.5 stroke-[3]" />}
-                              </button>
-                            </div>
-
-                            {/* Card Title */}
-                            <h4 className="text-sm font-medium text-zinc-200 leading-snug line-clamp-2">
-                              {task.title}
-                            </h4>
-
-                            {/* Card Description Preview */}
-                            {task.description && (
-                              <p className="text-xs text-zinc-400 line-clamp-2 mt-1 font-normal">
-                                {task.description}
-                              </p>
-                            )}
-
-                            {/* Subtask count */}
-                            {subtasks.length > 0 && (
-                              <div className="mt-2 flex items-center gap-1.5 text-[11px] text-cyan-400 font-mono">
-                                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
-                                <span>Subtasks: {completedSubtasks}/{subtasks.length}</span>
-                              </div>
-                            )}
-
-                            {/* Card Bottom Meta */}
-                            <div className="flex items-center justify-between pt-2.5 mt-2 border-t border-white/5 text-[11px] text-zinc-500">
-                              <div className="flex items-center gap-2">
-                                {task.due_date && (
-                                  <span className="flex items-center gap-1 text-zinc-400">
-                                    <Calendar className="w-3 h-3 text-cyan-400" />
-                                    <span>{task.due_date}</span>
-                                  </span>
-                                )}
-
-                                {task.deadline && (
-                                  <span className="flex items-center gap-1 text-[#ff0055]">
-                                    <Clock className="w-3 h-3" />
-                                    <span className="font-mono">{task.deadline}</span>
-                                  </span>
-                                )}
-
-                                {task.comments?.length > 0 && (
-                                  <span className="flex items-center gap-1">
-                                    <MessageSquare className="w-3 h-3" />
-                                    <span>{task.comments.length}</span>
-                                  </span>
-                                )}
-                              </div>
-
-                              {assignee && (
-                                <div
-                                  className="w-5 h-5 rounded-full overflow-hidden border border-cyan-500/40"
-                                  title={`Assigned to ${assignee.name}`}
-                                >
-                                  {assignee.avatar_url ? (
-                                    <img
-                                      src={assignee.avatar_url}
-                                      alt={assignee.name}
-                                      className="w-full h-full object-cover"
-                                    />
-                                  ) : (
-                                    <div className="w-full h-full bg-cyan-950 text-cyan-400 flex items-center justify-center text-[10px] font-bold">
-                                      {assignee.name[0]}
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </Draggable>
-                    );
-                  })}
+                  {column.tasks.map((task: Task, index: number) => (
+                    <KanbanCard
+                      key={task.id}
+                      task={task}
+                      index={index}
+                      tasks={tasks}
+                      profiles={profiles}
+                      setSelectedTaskId={setSelectedTaskId}
+                      toggleTask={toggleTask}
+                    />
+                  ))}
                   {provided.placeholder}
                 </div>
               )}

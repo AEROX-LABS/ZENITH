@@ -19,12 +19,17 @@ import {
   Layers,
   User,
   Users,
-  Workflow
+  Workflow,
+  Tag,
+  Hash
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { formatDate } from '@/lib/parser';
 import { ToastContainer } from '@/components/Toast';
 import { CreateWorkspaceModal } from '@/components/CreateWorkspaceModal';
+import { GlobalRadarButton } from '@/components/GlobalRadarButton';
+import { GlobalNetworkPanel } from '@/components/GlobalNetworkPanel';
+import { DynamicEntityModal, MagneticButton } from '@/components/DynamicEntityModal';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const {
@@ -45,6 +50,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
     openTutorial,
     createProject,
     deleteProject,
+    labels,
+    deleteLabel,
+    openEntityModal,
+    filterLabel,
+    setFilterLabel,
   } = useApp();
 
   const [isCreatingProject, setIsCreatingProject] = useState(false);
@@ -202,14 +212,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <Layers className="w-3 h-3 text-cyan-400" />
                 <span>Workspaces ({workspaces.length})</span>
               </span>
-              <button
-                type="button"
+              <MagneticButton
+                distance={5}
                 onClick={() => setIsCreateWorkspaceOpen(true)}
-                className="p-1 rounded text-zinc-400 hover:text-cyan-400 hover:bg-white/5 transition-colors"
-                title="Create Workspace"
+                className="p-1 rounded text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10 border border-cyan-500/20 hover:border-cyan-500/50 transition-all group"
+                style={{ borderColor: 'rgba(0,224,255,0.2)' }}
               >
-                <Plus className="w-3.5 h-3.5" />
-              </button>
+                <Plus className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+              </MagneticButton>
             </div>
 
             <div className="space-y-1">
@@ -267,17 +277,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
           {/* Project Tree Section */}
           <div>
             <div className="flex items-center justify-between px-2 mb-2">
-              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider font-mono">
-                Projects ({projects.length})
+              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider font-mono flex items-center gap-1.5">
+                <Folder className="w-3 h-3 text-cyan-400" />
+                <span>Projects ({projects.length})</span>
               </span>
-              <button
-                type="button"
-                onClick={() => setIsCreatingProject(!isCreatingProject)}
-                className="p-1 rounded text-zinc-400 hover:text-cyan-400 hover:bg-white/5 transition-colors"
-                title="Create Project"
+              <MagneticButton
+                distance={5}
+                onClick={() => openEntityModal('project')}
+                className="p-1 rounded text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10 border border-cyan-500/30 hover:border-cyan-500/60 shadow-[0_0_10px_rgba(0,240,255,0.2)] transition-all group"
+                style={{ borderColor: 'rgba(0,240,255,0.3)' }}
               >
-                <Plus className="w-3.5 h-3.5" />
-              </button>
+                <Plus className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+              </MagneticButton>
             </div>
 
             {/* Inline Project Creator */}
@@ -374,6 +385,85 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   </div>
                 );
               })}
+            </div>
+          </div>
+
+          {/* Dynamic Labels Protocol Section */}
+          <div>
+            <div className="flex items-center justify-between px-2 mb-2">
+              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider font-mono flex items-center gap-1.5">
+                <Tag className="w-3 h-3 text-[#FF006E]" />
+                <span>LABELS ({labels.length})</span>
+              </span>
+              <MagneticButton
+                distance={5}
+                onClick={() => openEntityModal('label')}
+                className="p-1 rounded text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10 border border-cyan-500/30 hover:border-cyan-500/60 shadow-[0_0_10px_rgba(0,240,255,0.3)] transition-all group"
+                style={{ borderColor: 'rgba(0,240,255,0.3)' }}
+              >
+                <Plus className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+              </MagneticButton>
+            </div>
+
+            {/* Labels List with Filter & Tag Counters */}
+            <div className="space-y-1">
+              {labels.length === 0 ? (
+                <div
+                  onClick={() => openEntityModal('label')}
+                  className="px-3 py-2 text-[11px] text-zinc-500 font-mono italic border border-dashed border-white/5 rounded-xl text-center cursor-pointer hover:border-cyan-500/30 hover:text-cyan-400 transition-colors"
+                >
+                  + DYNAMIC_LABEL // INGEST
+                </div>
+              ) : (
+                labels.map(lbl => {
+                  const isFilterActive = filterLabel === lbl.name;
+                  const matchingTaskCount = tasks.filter(t => !t.completed && t.labels?.includes(lbl.name)).length;
+
+                  return (
+                    <div
+                      key={lbl.id}
+                      onClick={() => setFilterLabel(isFilterActive ? 'all' : lbl.name)}
+                      className={`w-full group/lbl flex items-center justify-between px-3 py-2 rounded-xl text-xs cursor-pointer transition-all font-mono ${
+                        isFilterActive
+                          ? 'bg-white/10 text-white border border-white/20 shadow-[0_0_12px_rgba(255,0,110,0.25)]'
+                          : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5 border border-transparent'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full flex-shrink-0 transition-transform group-hover/lbl:scale-125"
+                          style={{
+                            backgroundColor: lbl.color,
+                            boxShadow: `0 0 8px ${lbl.color}`,
+                          }}
+                        />
+                        <span className="truncate tracking-wider font-semibold">#{lbl.name}</span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {matchingTaskCount > 0 && (
+                          <span className="text-[10px] text-zinc-500 group-hover/lbl:opacity-0 transition-opacity">
+                            {matchingTaskCount}
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm(`Remove label "${lbl.name}" from kernel?`)) {
+                              deleteLabel(lbl.id);
+                            }
+                          }}
+                          className="p-1 text-zinc-600 hover:text-red-400 rounded opacity-0 group-hover/lbl:opacity-100 transition-opacity"
+                          title="Delete label"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
 
@@ -603,6 +693,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Dynamic Create Workspace Dialog */}
       <CreateWorkspaceModal />
+
+      {/* Global Radar Floating Action Button (Continuous Sonar Rings & Scan Network Tooltip) */}
+      <GlobalRadarButton />
+
+      {/* Global Network Active Operatives Panel & Invite Engine */}
+      <GlobalNetworkPanel />
+
+      {/* Dynamic Entity Creation Protocol Modal */}
+      <DynamicEntityModal />
     </div>
   );
 }

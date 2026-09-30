@@ -36,7 +36,9 @@ function TaskDrawerContent({ task }: { task: Task }) {
     addComment, 
     projects, 
     sections, 
-    profiles 
+    profiles,
+    openEntityModal,
+    labels
   } = useApp();
 
   const [title, setTitle] = useState(task.title);
@@ -184,10 +186,20 @@ function TaskDrawerContent({ task }: { task: Task }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 bg-black/30 border border-white/5 rounded-xl text-xs">
               {/* Project selector */}
               <div>
-                <span className="text-zinc-400 block mb-1 font-mono flex items-center gap-1">
-                  <Folder className="w-3 h-3 text-zinc-400" />
-                  Project
-                </span>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-zinc-400 font-mono flex items-center gap-1">
+                    <Folder className="w-3 h-3 text-cyan-400" />
+                    Project
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => openEntityModal('project')}
+                    className="text-[10px] text-cyan-400 hover:text-cyan-300 font-mono transition-colors"
+                    title="Dynamic Entity Protocol: Project"
+                  >
+                    [+] NEW
+                  </button>
+                </div>
                 <select
                   value={task.project_id || ''}
                   onChange={(e) => updateTask(task.id, { project_id: e.target.value || null, section_id: null })}
@@ -236,10 +248,20 @@ function TaskDrawerContent({ task }: { task: Task }) {
 
               {/* Assignee selector */}
               <div>
-                <span className="text-zinc-400 block mb-1 font-mono flex items-center gap-1">
-                  <User className="w-3 h-3 text-zinc-400" />
-                  Assignee
-                </span>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-zinc-400 font-mono flex items-center gap-1">
+                    <User className="w-3 h-3 text-emerald-400" />
+                    Assignee
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => openEntityModal('assignee')}
+                    className="text-[10px] text-emerald-400 hover:text-emerald-300 font-mono transition-colors"
+                    title="Dynamic Entity Protocol: Assignee"
+                  >
+                    [+] NEW
+                  </button>
+                </div>
                 <select
                   value={task.assignee_id || ''}
                   onChange={(e) => updateTask(task.id, { assignee_id: e.target.value || null })}
@@ -284,17 +306,59 @@ function TaskDrawerContent({ task }: { task: Task }) {
 
             {/* Labels / Tags Manager */}
             <div>
-              <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block mb-2 font-mono flex items-center gap-1.5">
-                <Tag className="w-3.5 h-3.5 text-violet-400" />
-                <span>Tags & Labels</span>
-              </span>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider font-mono flex items-center gap-1.5">
+                  <Tag className="w-3.5 h-3.5 text-[#FF006E]" />
+                  <span>Tags & Labels</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => openEntityModal('label')}
+                  className="text-[10px] text-[#FF006E] hover:underline font-mono transition-colors"
+                  title="Dynamic Entity Protocol: Ingest Label"
+                >
+                  [+] PROTOCOL
+                </button>
+              </div>
+
+              {/* Registered Kernel Labels Quick Toggles */}
+              {labels.length > 0 && (
+                <div className="flex items-center gap-1.5 flex-wrap mb-2">
+                  {labels.map(lbl => {
+                    const isAttached = task.labels?.includes(lbl.name);
+                    return (
+                      <button
+                        key={lbl.id}
+                        type="button"
+                        onClick={() => {
+                          const current = task.labels || [];
+                          const updated = isAttached
+                            ? current.filter(l => l !== lbl.name)
+                            : [...current, lbl.name];
+                          updateTask(task.id, { labels: updated });
+                        }}
+                        style={{
+                          borderColor: isAttached ? lbl.color : 'rgba(255,255,255,0.1)',
+                          backgroundColor: isAttached ? `${lbl.color}20` : 'transparent',
+                          color: isAttached ? lbl.color : '#a1a1aa',
+                        }}
+                        className="text-[10px] font-mono px-2 py-0.5 rounded border transition-all flex items-center gap-1"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: lbl.color }} />
+                        <span>#{lbl.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
               <div className="flex items-center gap-1.5 flex-wrap">
                 {task.labels?.map((tag, idx) => (
                   <span
                     key={idx}
-                    className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg bg-violet-950/40 border border-violet-500/30 text-violet-300"
+                    className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg bg-violet-950/40 border border-violet-500/30 text-violet-300 font-mono"
                   >
-                    <span>@{tag}</span>
+                    <span>#{tag}</span>
                     <button
                       type="button"
                       onClick={() => handleRemoveTag(tag)}
@@ -313,16 +377,16 @@ function TaskDrawerContent({ task }: { task: Task }) {
                       value={newTagText}
                       onChange={(e) => setNewTagText(e.target.value)}
                       placeholder="Tag name..."
-                      className="bg-black/50 border border-violet-500/40 rounded-lg px-2 py-0.5 text-xs text-zinc-200 focus:outline-none"
+                      className="bg-black/50 border border-violet-500/40 rounded-lg px-2 py-0.5 text-xs text-zinc-200 focus:outline-none font-mono"
                     />
-                    <button type="submit" className="text-xs text-violet-400 font-bold px-1">Add</button>
+                    <button type="submit" className="text-xs text-violet-400 font-bold px-1 font-mono">Add</button>
                     <button type="button" onClick={() => setIsAddingTag(false)} className="text-xs text-zinc-500">×</button>
                   </form>
                 ) : (
                   <button
                     type="button"
                     onClick={() => setIsAddingTag(true)}
-                    className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg border border-dashed border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:border-zinc-500 transition-colors"
+                    className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg border border-dashed border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:border-zinc-500 transition-colors font-mono"
                   >
                     <Plus className="w-3 h-3" />
                     <span>Add Tag</span>
