@@ -24,6 +24,7 @@ import { useApp } from '@/context/AppContext';
 import { parseTaskInput, formatDate } from '@/lib/parser';
 import { Priority } from '@/types';
 import { TacticalTimeSlider } from '@/components/TacticalTimeSlider';
+import { useAudio } from '@/hooks/useAudio';
 
 const PRIORITY_CONFIG: Record<Priority, { label: string; text: string; bg: string; border: string; activeRing: string }> = {
   p1: { 
@@ -64,10 +65,13 @@ function AddTaskModalDialog() {
     workspaces,
     currentWorkspace,
     profiles,
+    activeWorkspaceMembers,
     activeView, 
     addTaskInitialData,
     showToast 
   } = useApp();
+
+  const { playTick, playClack, playThud } = useAudio();
 
   // Form State initialized on mount
   const [title, setTitle] = useState('');
@@ -211,12 +215,13 @@ function AddTaskModalDialog() {
         deadline: deadline.trim() || null,
         workspace_id: workspaceId || selectedWorkspace?.id,
         project_id: projectId,
-        assignee_id: isGroup ? assigneeId : null,
+        assignee_id: assigneeId || null,
         section_id: addTaskInitialData?.section_id || null,
         labels,
       });
 
       showToast(`Task "${finalTitle}" created successfully`, 'success');
+      playClack();
       setIsQuickAddOpen(false);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to create task. Please try again.';
@@ -230,15 +235,16 @@ function AddTaskModalDialog() {
   const selectedWorkspace = workspaces.find(w => w.id === workspaceId) || workspaces[0];
   const isGroupWorkspace = selectedWorkspace?.type === 'group';
   const selectedProject = projects.find(p => p.id === projectId);
-  const selectedAssignee = profiles.find(p => p.id === assigneeId);
+  
+  // Resolve active workspace members (or fallback to profiles if empty)
+  const availableMembers = activeWorkspaceMembers && activeWorkspaceMembers.length > 0 
+    ? activeWorkspaceMembers 
+    : profiles;
+  const selectedAssignee = availableMembers.find(p => p.id === assigneeId) || profiles.find(p => p.id === assigneeId);
 
   const handleSelectWorkspace = (wsId: string) => {
     setWorkspaceId(wsId);
     setIsWorkspaceDropdownOpen(false);
-    const ws = workspaces.find(w => w.id === wsId);
-    if (ws?.type !== 'group') {
-      setAssigneeId(null);
-    }
   };
 
   return (
@@ -623,126 +629,124 @@ function AddTaskModalDialog() {
             </div>
           </div>
 
-          {/* Row: Conditional Assignee (for Group Workspaces) & Hard Deadline */}
+          {/* Row: Clean Styled Assignee Dropdown & Hard Deadline */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-            {/* Dynamic Assignee Field for Group Workspaces */}
-            {isGroupWorkspace ? (
-              <div className="relative space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
-                <label className="text-xs font-semibold text-zinc-400 flex items-center gap-1.5">
-                  <Users className="w-3.5 h-3.5 text-purple-400" />
+            {/* Clean Styled Assignee Dropdown */}
+            <div className="relative space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
+              <label className="text-xs font-semibold text-zinc-400 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-cyan-400" />
                   <span>Assignee</span>
-                  <span className="text-[10px] text-purple-400 font-mono">(Group)</span>
-                </label>
+                </span>
+                <span className="text-[10px] text-zinc-500 font-mono">WORKSPACE MEMBER</span>
+              </label>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsAssigneeDropdownOpen(prev => !prev);
-                    setIsWorkspaceDropdownOpen(false);
-                    setIsProjectDropdownOpen(false);
-                  }}
-                  disabled={loading}
-                  className="w-full flex items-center justify-between bg-black/50 hover:bg-black/70 border border-purple-500/30 hover:border-purple-500/50 focus:border-purple-400 rounded-xl px-3.5 py-2 text-xs text-zinc-200 transition-all cursor-pointer"
-                  aria-haspopup="listbox"
-                  aria-expanded={isAssigneeDropdownOpen}
-                >
-                  <div className="flex items-center gap-2 truncate">
-                    {selectedAssignee ? (
-                      <>
-                        <div className="w-4 h-4 rounded-full overflow-hidden border border-purple-500/40 flex-shrink-0">
-                          {selectedAssignee.avatar_url ? (
-                            <img src={selectedAssignee.avatar_url} alt={selectedAssignee.name} className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full bg-purple-950 text-purple-300 flex items-center justify-center text-[9px] font-bold">
-                              {selectedAssignee.name[0]}
-                            </div>
-                          )}
-                        </div>
-                        <span className="truncate font-medium text-purple-200">{selectedAssignee.name}</span>
-                        <span className="text-[10px] text-zinc-500 font-mono truncate">({selectedAssignee.role})</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="w-2 h-2 rounded-full bg-zinc-600 flex-shrink-0" />
-                        <span className="text-zinc-400">Unassigned</span>
-                      </>
-                    )}
-                  </div>
-                  <ChevronDown className={`w-3.5 h-3.5 text-zinc-500 transition-transform duration-150 ${isAssigneeDropdownOpen ? 'rotate-180 text-purple-400' : ''}`} />
-                </button>
+              <button
+                type="button"
+                onClick={() => {
+                  playClack();
+                  setIsAssigneeDropdownOpen(prev => !prev);
+                  setIsWorkspaceDropdownOpen(false);
+                  setIsProjectDropdownOpen(false);
+                }}
+                disabled={loading}
+                className="w-full flex items-center justify-between bg-black/50 hover:bg-black/70 border border-white/10 hover:border-cyan-500/40 focus:border-cyan-400 rounded-xl px-3.5 py-2 text-xs text-zinc-200 transition-all cursor-pointer font-mono"
+                aria-haspopup="listbox"
+                aria-expanded={isAssigneeDropdownOpen}
+              >
+                <div className="flex items-center gap-2 truncate">
+                  {selectedAssignee ? (
+                    <>
+                      <div className="w-4 h-4 rounded-full overflow-hidden border border-cyan-500/40 flex-shrink-0">
+                        {selectedAssignee.avatar_url ? (
+                          <img src={selectedAssignee.avatar_url} alt={selectedAssignee.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full bg-cyan-950 text-cyan-300 flex items-center justify-center text-[9px] font-bold">
+                            {selectedAssignee.name ? selectedAssignee.name[0] : 'U'}
+                          </div>
+                        )}
+                      </div>
+                      <span className="truncate font-medium text-cyan-200">{selectedAssignee.name}</span>
+                      <span className="text-[10px] text-zinc-500 font-mono truncate">({selectedAssignee.role || 'Member'})</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="w-2 h-2 rounded-full bg-zinc-600 flex-shrink-0" />
+                      <span className="text-zinc-400">Unassigned</span>
+                    </>
+                  )}
+                </div>
+                <ChevronDown className={`w-3.5 h-3.5 text-zinc-500 transition-transform duration-150 ${isAssigneeDropdownOpen ? 'rotate-180 text-cyan-400' : ''}`} />
+              </button>
 
-                {/* Assignee Dropdown Menu */}
-                {isAssigneeDropdownOpen && (
-                  <>
-                    <div 
-                      className="fixed inset-0 z-30 cursor-default" 
-                      onClick={() => setIsAssigneeDropdownOpen(false)} 
-                    />
-                    <div className="absolute left-0 right-0 top-full mt-1.5 z-40 bg-[#0c0d12]/95 border border-purple-500/40 rounded-xl shadow-[0_0_30px_rgba(0,0,0,0.9),0_0_15px_rgba(168,85,247,0.15)] backdrop-blur-xl p-1.5 space-y-1 max-h-48 overflow-y-auto animate-in fade-in zoom-in-95 duration-100">
+              {/* Assignee Dropdown Menu */}
+              {isAssigneeDropdownOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-30 cursor-default" 
+                    onClick={() => {
+                      playTick();
+                      setIsAssigneeDropdownOpen(false);
+                    }} 
+                  />
+                  <div className="absolute left-0 right-0 top-full mt-1.5 z-40 bg-[#000101]/95 border border-cyan-500/30 rounded-xl shadow-[0_0_30px_rgba(0,0,0,0.9),0_0_15px_rgba(0,224,255,0.15)] backdrop-blur-xl p-1.5 space-y-1 max-h-52 overflow-y-auto animate-in fade-in zoom-in-95 duration-100 font-mono">
+                    <button
+                      type="button"
+                      onMouseEnter={() => playTick()}
+                      onClick={() => {
+                        playClack();
+                        setAssigneeId(null);
+                        setIsAssigneeDropdownOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
+                        assigneeId === null
+                          ? 'bg-cyan-950/40 text-cyan-300 border border-cyan-500/30 font-medium'
+                          : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/5'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-zinc-600" />
+                        <span>Unassigned</span>
+                      </div>
+                      {assigneeId === null && <Check className="w-3 h-3 text-cyan-400" />}
+                    </button>
+
+                    {availableMembers.map((p) => (
                       <button
+                        key={p.id}
                         type="button"
+                        onMouseEnter={() => playTick()}
                         onClick={() => {
-                          setAssigneeId(null);
+                          playClack();
+                          setAssigneeId(p.id);
                           setIsAssigneeDropdownOpen(false);
                         }}
-                        className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
-                          assigneeId === null
-                            ? 'bg-purple-950/40 text-purple-300 border border-purple-500/30 font-medium'
+                        className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
+                          assigneeId === p.id
+                            ? 'bg-cyan-950/40 text-cyan-300 border border-cyan-500/30 font-medium'
                             : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/5'
                         }`}
                       >
-                        <div className="flex items-center gap-2">
-                          <span className="w-1.5 h-1.5 rounded-full bg-zinc-600" />
-                          <span>Unassigned</span>
-                        </div>
-                        {assigneeId === null && <Check className="w-3 h-3 text-purple-400" />}
-                      </button>
-
-                      {profiles.map((p) => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => {
-                            setAssigneeId(p.id);
-                            setIsAssigneeDropdownOpen(false);
-                          }}
-                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
-                            assigneeId === p.id
-                              ? 'bg-purple-950/40 text-purple-300 border border-purple-500/30 font-medium'
-                              : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/5'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 truncate">
-                            <div className="w-4 h-4 rounded-full overflow-hidden border border-purple-500/40 flex-shrink-0">
-                              {p.avatar_url ? (
-                                <img src={p.avatar_url} alt={p.name} className="w-full h-full object-cover" />
-                              ) : (
-                                <div className="w-full h-full bg-purple-950 text-purple-300 flex items-center justify-center text-[9px] font-bold">
-                                  {p.name[0]}
-                                </div>
-                              )}
-                            </div>
-                            <span className="truncate">{p.name}</span>
-                            <span className="text-[10px] text-zinc-500 font-mono">({p.role})</span>
+                        <div className="flex items-center gap-2 truncate">
+                          <div className="w-4 h-4 rounded-full overflow-hidden border border-cyan-500/40 flex-shrink-0">
+                            {p.avatar_url ? (
+                              <img src={p.avatar_url} alt={p.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full bg-cyan-950 text-cyan-300 flex items-center justify-center text-[9px] font-bold">
+                                {p.name ? p.name[0] : 'U'}
+                              </div>
+                            )}
                           </div>
-                          {assigneeId === p.id && <Check className="w-3 h-3 text-purple-400 flex-shrink-0" />}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-zinc-500 flex items-center gap-1.5">
-                  <User className="w-3.5 h-3.5 text-zinc-600" />
-                  <span>Assignee</span>
-                </label>
-                <div className="w-full bg-black/20 border border-white/5 rounded-xl px-3.5 py-2 text-xs text-zinc-500 italic">
-                  Solo Personal Workspace
-                </div>
-              </div>
-            )}
+                          <span className="truncate">{p.name}</span>
+                          <span className="text-[10px] text-zinc-500 font-mono">({p.role || 'Member'})</span>
+                        </div>
+                        {assigneeId === p.id && <Check className="w-3 h-3 text-cyan-400 flex-shrink-0" />}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
 
             {/* Tactical 24-Hour Time Slider (Continuous Magnetic Slider) */}
             <div className="space-y-1.5 col-span-1 sm:col-span-2">

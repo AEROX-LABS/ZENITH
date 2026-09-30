@@ -32,6 +32,7 @@ import { GlobalRadarButton } from '@/components/GlobalRadarButton';
 import { GlobalNetworkPanel } from '@/components/GlobalNetworkPanel';
 import { DynamicEntityModal, MagneticButton } from '@/components/DynamicEntityModal';
 import { OperatorProfileModal } from '@/components/OperatorProfileModal';
+import { useAudio } from '@/hooks/useAudio';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const {
@@ -59,6 +60,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
     setFilterLabel,
     openOperatorProfile,
   } = useApp();
+
+  const { playTick, playClack } = useAudio();
 
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
@@ -528,12 +531,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </button>
         </div>
 
-        {/* User Account / Operator Profile Bottom-Left Trigger */}
+        {/* User Account / Profile & Analytics Bottom-Left Trigger */}
         <div className="p-3 border-t border-white/5 bg-[#09090b] flex items-center justify-between">
           <div
-            onClick={() => openOperatorProfile()}
+            onClick={() => {
+              playClack();
+              openOperatorProfile();
+            }}
+            onMouseEnter={() => playTick()}
             className="flex items-center gap-2.5 min-w-0 cursor-pointer hover:opacity-90 transition-opacity group/avatar"
-            title="Open [OPERATOR_PROFILE] Telemetry"
+            title="Profile & Analytics"
           >
             <div className="w-8 h-8 rounded-full overflow-hidden border border-[#00F5D4]/50 flex-shrink-0 bg-cyan-950 flex items-center justify-center text-xs font-bold text-cyan-300 shadow-[0_0_10px_rgba(0,245,212,0.3)] group-hover/avatar:scale-105 transition-transform">
               {user?.avatar_url ? (
@@ -543,8 +550,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
               )}
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-bold text-zinc-100 truncate group-hover/avatar:text-[#00F5D4] transition-colors">{user?.name || 'Grandmaster Architect'}</p>
-              <p className="text-[10px] text-zinc-500 truncate font-mono">[OPERATOR_PROFILE]</p>
+              <p className="text-xs font-bold text-zinc-100 truncate group-hover/avatar:text-[#00F5D4] transition-colors">{user?.name || 'Workspace Member'}</p>
+              <p className="text-[10px] text-zinc-500 truncate font-mono">Profile & Analytics</p>
             </div>
           </div>
 
@@ -688,11 +695,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
           <button
             type="button"
-            onClick={() => openOperatorProfile()}
-            className="flex flex-col items-center gap-1 p-2 rounded-xl text-zinc-500 hover:text-[#00F5D4] transition-colors"
+            onClick={() => {
+              playClack();
+              openOperatorProfile();
+            }}
+            className="flex flex-col items-center gap-1 p-2 rounded-xl text-zinc-500 hover:text-[#00F5D4] transition-colors cursor-pointer"
           >
             <Activity className="w-5 h-5 text-[#00F5D4]" />
-            <span className="text-[10px]">Telemetry</span>
+            <span className="text-[10px]">Analytics</span>
           </button>
         </nav>
       </div>
@@ -703,13 +713,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Global Radar Floating Action Button (Continuous Sonar Rings & Scan Network Tooltip) */}
       <GlobalRadarButton />
 
-      {/* Global Network Active Operatives Panel & Invite Engine */}
+      {/* Global Network Directory & Members Panel */}
       <GlobalNetworkPanel />
 
       {/* Dynamic Entity Creation Protocol Modal */}
       <DynamicEntityModal />
 
-      {/* [OPERATOR_PROFILE] Telemetry Modal */}
+      {/* Profile & Analytics Modal */}
       <OperatorProfileModal />
     </div>
   );

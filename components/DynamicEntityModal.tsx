@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, useMotionValue, useSpring } from 'framer-motion';
 import { X, Tag, Folder, UserCheck, Sparkles, Check, Hash } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
+import { useAudio } from '@/hooks/useAudio';
 
 // Cybernetic Palette swatches as requested
 export const HUE_PALETTE = [
@@ -73,6 +74,7 @@ export function MagneticButton({
   className = '',
   distance = 6,
   onClick,
+  onMouseEnter,
   disabled = false,
   type = 'button',
   style = {},
@@ -82,6 +84,7 @@ export function MagneticButton({
   className?: string;
   distance?: number;
   onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  onMouseEnter?: (e: React.MouseEvent<HTMLButtonElement>) => void;
   disabled?: boolean;
   type?: 'button' | 'submit' | 'reset';
   style?: React.CSSProperties;
@@ -118,7 +121,10 @@ export function MagneticButton({
       title={title}
       style={{ x: springX, y: springY, ...style }}
       onMouseMove={handleMouseMove}
-      onMouseEnter={() => setIsHovered(true)}
+      onMouseEnter={(e) => {
+        setIsHovered(true);
+        if (onMouseEnter) onMouseEnter(e);
+      }}
       onMouseLeave={handleMouseLeave}
       onClick={onClick}
       className={`relative ${className}`}
@@ -140,6 +146,7 @@ export function DynamicEntityModal() {
     createAssignee,
     showToast,
   } = useApp();
+  const { playTick, playClack } = useAudio();
 
   // Selected hue state (defaulting to Electric Cyan)
   const [selectedColor, setSelectedColor] = useState<string>('#00E0FF');
@@ -151,7 +158,7 @@ export function DynamicEntityModal() {
   const [projectViewMode, setProjectViewMode] = useState<'list' | 'board'>('list');
   const [assigneeName, setAssigneeName] = useState('');
   const [assigneeEmail, setAssigneeEmail] = useState('');
-  const [assigneeRole, setAssigneeRole] = useState('Senior Operative');
+  const [assigneeRole, setAssigneeRole] = useState('Product Lead');
 
   // Input focus reticle state
   const [inputFocused, setInputFocused] = useState(false);
@@ -170,7 +177,7 @@ export function DynamicEntityModal() {
       setProjectName('');
       setAssigneeName('');
       setAssigneeEmail('');
-      setAssigneeRole('Senior Operative');
+      setAssigneeRole('Product Lead');
       if (entityModalTab === 'project') setSelectedColor('#00E0FF');
       else if (entityModalTab === 'label') setSelectedColor('#FF006E');
       else setSelectedColor('#00F5D4');
@@ -221,7 +228,7 @@ export function DynamicEntityModal() {
         showToast(`[SYS_ENTITY] PROJECT "${projectName.trim().toUpperCase()}" INITIALIZED!`, 'success');
       } else if (entityModalTab === 'assignee') {
         if (!assigneeName.trim() || !assigneeEmail.trim()) {
-          showToast('ENTER OPERATIVE NAME AND COMM LINK (EMAIL)', 'error');
+          showToast('ENTER MEMBER NAME AND EMAIL ADDRESS', 'error');
           return;
         }
         await createAssignee({
@@ -231,6 +238,7 @@ export function DynamicEntityModal() {
         });
       }
 
+      playClack();
       setIsEntityModalOpen(false);
     } catch (err: any) {
       showToast(err.message || 'PROTOCOL EXECUTION FAILED', 'error');
@@ -484,7 +492,7 @@ export function DynamicEntityModal() {
                 <label className="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-2 flex items-center justify-between">
                   <span className="flex items-center gap-1.5">
                     <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>OPERATIVE CODENAME / NAME</span>
+                    <span>MEMBER NAME</span>
                   </span>
                   <span className="text-[10px] text-zinc-600 font-normal">PROFILE RECORD</span>
                 </label>
@@ -503,7 +511,7 @@ export function DynamicEntityModal() {
                     onChange={(e) => setAssigneeName(e.target.value)}
                     onFocus={() => setInputFocused(true)}
                     onBlur={() => setInputFocused(false)}
-                    placeholder="E.G. CYBER_COMMANDER"
+                    placeholder="E.G. ALEX MERCER"
                     style={{
                       borderColor: inputFocused ? selectedColor : 'rgba(255,255,255,0.1)',
                       caretColor: selectedColor,
@@ -516,25 +524,25 @@ export function DynamicEntityModal() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[10px] font-mono text-zinc-500 uppercase tracking-wider mb-1">
-                    COMM LINK (EMAIL)
+                    EMAIL ADDRESS
                   </label>
                   <input
                     type="email"
                     value={assigneeEmail}
                     onChange={(e) => setAssigneeEmail(e.target.value)}
-                    placeholder="operative@aerox.net"
+                    placeholder="member@aerox.dev"
                     className="w-full bg-[#0d0e12] border border-white/10 rounded-xl px-3 py-2 text-xs text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-cyan-500/50 font-mono"
                   />
                 </div>
                 <div>
                   <label className="block text-[10px] font-mono text-zinc-500 uppercase tracking-wider mb-1">
-                    TACTICAL ROLE
+                    ROLE / TITLE
                   </label>
                   <input
                     type="text"
                     value={assigneeRole}
                     onChange={(e) => setAssigneeRole(e.target.value)}
-                    placeholder="Senior Operative"
+                    placeholder="Product Lead"
                     className="w-full bg-[#0d0e12] border border-white/10 rounded-xl px-3 py-2 text-xs text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-cyan-500/50 font-mono"
                   />
                 </div>

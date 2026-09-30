@@ -1,39 +1,135 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, 
   Flame, 
   Activity, 
-  CheckCircle2, 
   Calendar, 
-  Zap, 
-  ShieldCheck, 
-  Clock, 
-  Sparkles,
-  User,
   Terminal,
-  Layers
+  ShieldCheck
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { formatDate } from '@/lib/parser';
 import { ReticleHUD } from '@/components/DynamicEntityModal';
+import { useAudio } from '@/hooks/useAudio';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { Task } from '@/types';
 
 export function OperatorProfileModal() {
   const { 
     isOperatorProfileOpen, 
     setIsOperatorProfileOpen, 
     user, 
-    tasks, 
-    karma 
+    tasks 
   } = useApp();
 
-  const [hoveredBarIndex, setHoveredBarIndex] = useState<number | null>(null);
-  const [hoveredHeatmapDate, setHoveredHeatmapDate] = useState<{ date: string; count: number; x: number; y: number } | null>(null);
-  const [closeHovered, setCloseHovered] = useState(false);
+  const { playTick, playClack, playThud } = useAudio();
 
-  // Compute 7-day velocity data
+  const [hoveredBarIndex, setHoveredBarIndex] = useState<number | null>(null);
+  const [closeHovered, setCloseHovered] = useState(false);
+  const [realTasks, setRealTasks] = useState<Task[]>(tasks);
+
+  // When modal opens, trigger audio thud and fetch fresh remote tasks for authenticated user
+  useEffect(() => {
+    if (!isOperatorProfileOpen) return;
+    playThud(0.25);
+
+    let isMounted = true;
+    async function loadTasks() {
+      if (!user?.id || !isSupabaseConfigured) return;
+      try {
+        const { data, error } = await supabase
+          .from('tasks')
+          .select('*')
+          .eq('user_id', user.id);
+        if (!error && data && isMounted) {
+          setRealTasks(data as Task[]);
+        }
+      } catch {
+        // Fallback to tasks from context
+      }
+    }
+    loadTasks();
+    return () => {
+      isMounted = false;
+    };
+  }, [isOperatorProfileOpen, user?.id, playThud]);
+
+  // Keep realTasks in sync with context tasks
+  useEffect(() => {
+    if (tasks.length > 0) {
+      setRealTasks(tasks);
+    }
+  }, [tasks]);
+
+  // Filter tasks strictly for completed items belonging to current user
+  const completedTasks = useMemo(() => {
+    const source = realTasks.length > 0 ? realTasks : tasks;
+    return source.filter(t => {
+      const isDone = Boolean(t.completed || (t as unknown as { is_completed?: boolean }).is_completed);
+      if (user?.id) {
+        return isDone && (!t.user_id || t.user_id === user.id);
+      }
+      return isDone;
+    });
+  }, [realTasks, tasks, user?.id]);
+
+  // Aggregate real completed task counts strictly by date (YYYY-MM-DD)
+  const completedCountsByDate = useMemo(() => {
+    const map: Record<string, number> = {};
+    completedTasks.forEach(task => {
+      let dateStr: string | null = null;
+      if (task.completed_at) {
+        dateStr = task.completed_at.slice(0, 10);
+      } else if (task.due_date) {
+        dateStr = task.due_date;
+      } else if (task.created_at) {
+        dateStr = task.created_at.slice(0, 10);
+      }
+
+      if (dateStr) {
+        map[dateStr] = (map[dateStr] || 0) + 1;
+      }
+    });
+    return map;
+  }, [completedTasks]);
+
+  // Compute True Active Streak strictly from user's completed tasks
+  const trueActiveStreak = useMemo(() => {
+    const completedDates = new Set(Object.keys(completedCountsByDate));
+    if (completedDates.size === 0) return 0;
+
+    const today = new Date();
+    const todayStr = formatDate(today);
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+    const yesterdayStr = formatDate(yesterday);
+
+    let currentCheck = new Date();
+    if (completedDates.has(todayStr)) {
+      currentCheck = today;
+    } else if (completedDates.has(yesterdayStr)) {
+      currentCheck = yesterday;
+    } else {
+      return 0; // Inactive or broken streak
+    }
+
+    let streak = 0;
+    while (true) {
+      const dateToCheck = formatDate(currentCheck);
+      if (completedDates.has(dateToCheck)) {
+        streak += 1;
+        currentCheck.setDate(currentCheck.getDate() - 1);
+      } else {
+        break;
+      }
+    }
+    return streak;
+  }, [completedCountsByDate]);
+
+  // Compute 7-day velocity data strictly from real task completion counts
   const velocityData = useMemo(() => {
     const today = new Date();
     const days: { dateStr: string; dayLabel: string; count: number; isToday: boolean }[] = [];
@@ -44,11 +140,7 @@ export function OperatorProfileModal() {
       d.setDate(today.getDate() - i);
       const dateStr = formatDate(d);
       const dayLabel = dayNames[d.getDay()];
-
-      // Count tasks completed on this date from karma history or task items
-      const historyItem = karma.history.find(h => h.date === dateStr);
-      const tasksCompletedOnDate = tasks.filter(t => t.completed && t.due_date === dateStr).length;
-      const count = Math.max(historyItem?.count || 0, tasksCompletedOnDate);
+      const count = completedCountsByDate[dateStr] || 0;
 
       days.push({
         dateStr,
@@ -60,45 +152,24 @@ export function OperatorProfileModal() {
 
     const maxCount = Math.max(1, ...days.map(d => d.count));
     return { days, maxCount };
-  }, [karma.history, tasks]);
+  }, [completedCountsByDate]);
 
-  // Compute 365-day Consistency Matrix (52 weeks × 7 days)
+  // Compute 365-day Consistency Matrix (52 weeks × 7 days) strictly from actual task table
+  // If user has no completed tasks, every day is count 0 ("PITCH BLACK")
   const heatmapData = useMemo(() => {
     const today = new Date();
-    const weeks: { dateStr: string; count: number; dayOfWeek: number }[][] = [];
-    
-    // Aggregate completed task counts by date string
-    const completedCountsByDate: Record<string, number> = {};
-    for (const h of karma.history) {
-      completedCountsByDate[h.date] = Math.max(completedCountsByDate[h.date] || 0, h.count);
-    }
-    for (const t of tasks) {
-      if (t.completed && t.due_date) {
-        completedCountsByDate[t.due_date] = (completedCountsByDate[t.due_date] || 0) + 1;
-      }
-    }
-
-    // Seed realistic telemetry baseline for 365 days prior
-    const totalDays = 52 * 7; // 364 days
+    const totalDays = 52 * 7; // 364 days leading up to today
     const startDate = new Date();
     startDate.setDate(today.getDate() - totalDays);
 
+    const weeks: { dateStr: string; count: number; dayOfWeek: number }[][] = [];
     let currentWeek: { dateStr: string; count: number; dayOfWeek: number }[] = [];
 
     for (let i = 0; i < totalDays; i++) {
       const d = new Date(startDate);
       d.setDate(startDate.getDate() + i);
       const dateStr = formatDate(d);
-
-      let count = completedCountsByDate[dateStr] || 0;
-      // If within recent streak, ensure non-zero telemetry representation
-      const daysDiff = Math.floor((today.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
-      if (count === 0 && daysDiff >= 0 && daysDiff < karma.streak_days) {
-        count = ((i * 7 + 3) % 6) + 2;
-      } else if (count === 0 && (i % 7 === 1 || i % 7 === 3 || i % 7 === 4) && i % 4 !== 0) {
-        // Organic baseline telemetry
-        count = (i * 13) % 8;
-      }
+      const count = completedCountsByDate[dateStr] || 0; // Strictly real task count
 
       currentWeek.push({
         dateStr,
@@ -117,13 +188,13 @@ export function OperatorProfileModal() {
     }
 
     return weeks;
-  }, [karma.history, karma.streak_days, tasks]);
+  }, [completedCountsByDate]);
 
   if (!isOperatorProfileOpen) return null;
 
-  const totalTasksCompleted = tasks.filter(t => t.completed).length;
+  const totalTasksCompleted = completedTasks.length;
   const todayStr = formatDate(new Date());
-  const todayCount = tasks.filter(t => t.completed && t.due_date === todayStr).length;
+  const todayCount = completedCountsByDate[todayStr] || 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-2xl animate-in fade-in duration-200 select-none">
@@ -152,10 +223,10 @@ export function OperatorProfileModal() {
             </div>
             <div>
               <h2 className="text-sm font-bold tracking-widest text-[#00E0FF] flex items-center gap-2">
-                <span>● [OPERATOR_PROFILE] // TELEMETRY KERNEL</span>
+                <span>Profile & Analytics</span>
               </h2>
               <p className="text-[10px] text-zinc-500 uppercase tracking-wider">
-                PURE TELEMETRY · 365-DAY CONSISTENCY MATRIX · VELOCITY TELEMETRY
+                User Activity · 365-Day Contribution Heatmap · Task Velocity
               </p>
             </div>
           </div>
@@ -163,11 +234,17 @@ export function OperatorProfileModal() {
           <div className="relative">
             <button
               type="button"
-              onClick={() => setIsOperatorProfileOpen(false)}
-              onMouseEnter={() => setCloseHovered(true)}
+              onClick={() => {
+                playClack();
+                setIsOperatorProfileOpen(false);
+              }}
+              onMouseEnter={() => {
+                playTick();
+                setCloseHovered(true);
+              }}
               onMouseLeave={() => setCloseHovered(false)}
-              className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 border border-white/5 hover:border-white/20 transition-all"
-              title="Close Profile Telemetry [ESC]"
+              className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 border border-white/5 hover:border-white/20 transition-all cursor-pointer"
+              title="Close Profile [ESC]"
             >
               <ReticleHUD active={closeHovered} color="#00F5D4" offset={-3} />
               <X className="w-4 h-4" />
@@ -177,9 +254,9 @@ export function OperatorProfileModal() {
 
         {/* Modal Scrollable Body */}
         <div className="p-6 space-y-6 overflow-y-auto max-h-[calc(90vh-140px)] custom-scrollbar">
-          {/* Identity & Prominent Active Streak Neon Metric */}
+          {/* Identity & Prominent Active Streak Metric */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Operator Card */}
+            {/* User Profile Card */}
             <div className="p-4 rounded-xl bg-black/40 border border-white/10 flex items-center gap-3.5">
               <div className="relative w-12 h-12 rounded-full overflow-hidden border-2 border-[#00F5D4]/60 bg-cyan-950 flex-shrink-0 flex items-center justify-center text-base font-bold text-cyan-300 shadow-[0_0_15px_rgba(0,245,212,0.35)]">
                 {user?.avatar_url ? (
@@ -190,13 +267,13 @@ export function OperatorProfileModal() {
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-bold text-zinc-100 truncate tracking-wide">
-                  {user?.name || 'Grandmaster Architect'}
+                  {user?.name || 'Workspace Member'}
                 </p>
                 <p className="text-[10px] text-zinc-500 truncate font-mono">
-                  {user?.email || 'operator@aerox.net'}
+                  {user?.email || 'member@aerox.dev'}
                 </p>
                 <span className="inline-block mt-1 text-[9px] px-2 py-0.5 rounded bg-[#00F5D4]/10 text-[#00F5D4] border border-[#00F5D4]/30">
-                  {user?.role || 'Grandmaster Architect'}
+                  {user?.role || 'Member'}
                 </span>
               </div>
             </div>
@@ -206,16 +283,20 @@ export function OperatorProfileModal() {
               <div className="relative z-10">
                 <span className="text-[10px] font-bold text-[#00F5D4] uppercase tracking-wider flex items-center gap-1.5">
                   <Flame className="w-3.5 h-3.5 fill-[#00F5D4] text-[#00F5D4] animate-pulse" />
-                  <span>OPERATOR TELEMETRY METRIC</span>
+                  <span>ACTIVE STREAK</span>
                 </span>
                 <div className="flex items-baseline gap-2 mt-1">
                   <span
                     className="text-2xl sm:text-3xl font-black tracking-wider text-[#00F5D4] drop-shadow-[0_0_20px_rgba(0,245,212,0.85)]"
                   >
-                    Active Streak: {karma.streak_days} Days
+                    Active Streak: {trueActiveStreak} Days
                   </span>
-                  <span className="text-[9px] px-2 py-0.5 rounded bg-[#00F5D4]/10 text-[#00F5D4] border border-[#00F5D4]/30 font-bold uppercase">
-                    UNBROKEN
+                  <span className={`text-[9px] px-2 py-0.5 rounded font-bold uppercase ${
+                    trueActiveStreak > 0
+                      ? 'bg-[#00F5D4]/10 text-[#00F5D4] border border-[#00F5D4]/30'
+                      : 'bg-zinc-800 text-zinc-400 border border-white/10'
+                  }`}>
+                    {trueActiveStreak > 0 ? 'ACTIVE' : 'INACTIVE'}
                   </span>
                 </div>
               </div>
@@ -249,14 +330,19 @@ export function OperatorProfileModal() {
             {/* Dynamic Graph Bars Container */}
             <div className="h-36 pt-6 pb-2 px-2 flex items-end justify-between gap-3 border-b border-white/10 relative">
               {velocityData.days.map((day, idx) => {
-                const heightPercent = Math.max(12, Math.round((day.count / velocityData.maxCount) * 100));
+                const heightPercent = day.count > 0 
+                  ? Math.max(16, Math.round((day.count / velocityData.maxCount) * 100))
+                  : 4;
                 const isHovered = hoveredBarIndex === idx;
 
                 return (
                   <div
                     key={day.dateStr}
                     className="flex-1 flex flex-col items-center h-full justify-end relative group cursor-pointer"
-                    onMouseEnter={() => setHoveredBarIndex(idx)}
+                    onMouseEnter={() => {
+                      playTick();
+                      setHoveredBarIndex(idx);
+                    }}
                     onMouseLeave={() => setHoveredBarIndex(null)}
                   >
                     {/* Hover Inspection Tooltip */}
@@ -279,13 +365,16 @@ export function OperatorProfileModal() {
                       animate={{ height: `${heightPercent}%` }}
                       transition={{ duration: 0.4, delay: idx * 0.05, ease: 'easeOut' }}
                       className={`w-full max-w-[36px] rounded-t-lg transition-all relative ${
-                        day.isToday
+                        day.count === 0
+                          ? 'bg-zinc-800/40'
+                          : day.isToday
                           ? 'bg-gradient-to-t from-cyan-900 to-[#00E0FF] shadow-[0_0_12px_rgba(0,224,255,0.4)]'
                           : 'bg-gradient-to-t from-emerald-950 to-[#00F5D4]/80 hover:to-[#00F5D4]'
-                      } ${isHovered ? 'scale-105 shadow-[0_0_20px_#00F5D4]' : ''}`}
+                      } ${isHovered && day.count > 0 ? 'scale-105 shadow-[0_0_20px_#00F5D4]' : ''}`}
                     >
-                      {/* Top Glowing Cap */}
-                      <div className="absolute top-0 inset-x-0 h-1 bg-white rounded-t-lg opacity-80" />
+                      {day.count > 0 && (
+                        <div className="absolute top-0 inset-x-0 h-1 bg-white rounded-t-lg opacity-80" />
+                      )}
                     </motion.div>
                   </div>
                 );
@@ -312,7 +401,7 @@ export function OperatorProfileModal() {
                 <span>365-DAY CONSISTENCY MATRIX</span>
               </span>
               <span className="text-[10px] text-zinc-500 font-mono">
-                ANNUAL KERNEL EXECUTION MAP
+                {totalTasksCompleted === 0 ? 'NO COMPLETED TASKS (PITCH BLACK)' : 'ANNUAL ACTIVITY MAP'}
               </span>
             </div>
 
@@ -371,7 +460,10 @@ export function OperatorProfileModal() {
                         return (
                           <div
                             key={day.dateStr}
-                            title={`${day.dateStr}: ${day.count} tasks executed`}
+                            title={`${day.dateStr}: ${day.count} tasks completed`}
+                            onMouseEnter={() => {
+                              if (day.count > 0) playTick();
+                            }}
                             style={{
                               backgroundColor: cellBg,
                               borderColor: cellBorder,
@@ -387,9 +479,9 @@ export function OperatorProfileModal() {
 
                 {/* Matrix Legend */}
                 <div className="flex items-center justify-between pt-3 text-[9px] text-zinc-500 font-mono">
-                  <span>ZERO-SPEND DAYS [PITCH BLACK]</span>
+                  <span>ZERO-OUTPUT DAYS [PITCH BLACK]</span>
                   <div className="flex items-center gap-1.5">
-                    <span>LESS</span>
+                    <span>0</span>
                     <span className="w-2.5 h-2.5 rounded-xs bg-[#050508] border border-white/10" />
                     <span className="w-2.5 h-2.5 rounded-xs bg-[#00382B]" />
                     <span className="w-2.5 h-2.5 rounded-xs bg-[#008F6B]" />
@@ -405,13 +497,18 @@ export function OperatorProfileModal() {
 
         {/* Modal Footer */}
         <div className="p-4 border-t border-white/10 bg-white/[0.02] flex items-center justify-between">
-          <span className="text-[10px] text-zinc-500">
-            AEROX_OS // TELEMETRY PROTOCOL ACTIVE
+          <span className="text-[10px] text-zinc-500 flex items-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5 text-[#00F5D4]" />
+            <span>AUTHENTICATED USER METRICS · SYNCHRONIZED WITH POSTGRES</span>
           </span>
           <button
             type="button"
-            onClick={() => setIsOperatorProfileOpen(false)}
-            className="px-5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-xs font-mono text-zinc-200 transition-colors uppercase tracking-wider"
+            onClick={() => {
+              playClack();
+              setIsOperatorProfileOpen(false);
+            }}
+            onMouseEnter={() => playTick()}
+            className="px-5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-xs font-mono text-zinc-200 transition-colors uppercase tracking-wider cursor-pointer"
           >
             DISMISS
           </button>

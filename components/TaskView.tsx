@@ -25,6 +25,7 @@ import { TaskItem } from './TaskItem';
 import { KanbanBoard } from './KanbanBoard';
 import { CalendarView } from './CalendarView';
 import { formatDate } from '@/lib/parser';
+import { useAudio } from '@/hooks/useAudio';
 
 export function TaskView() {
   const {
@@ -51,6 +52,8 @@ export function TaskView() {
     reorderTasks,
     createSection,
   } = useApp();
+
+  const { playTick, playClack, playThud } = useAudio();
 
   const [isAddingSection, setIsAddingSection] = useState(false);
   const [newSectionName, setNewSectionName] = useState('');
@@ -80,9 +83,9 @@ export function TaskView() {
         } else if (!memberProfiles.some(p => p.id === m.user_id)) {
           memberProfiles.push({
             id: m.user_id,
-            name: `Operative ${m.user_id.slice(-4)}`,
-            email: 'operative@aerox.dev',
-            role: m.role || 'Architect',
+            name: `Member ${m.user_id.slice(-4)}`,
+            email: 'member@aerox.dev',
+            role: m.role || 'Member',
           });
         }
       }
@@ -199,6 +202,7 @@ export function TaskView() {
     const { source, destination } = result;
     if (!destination) return;
     if (source.index === destination.index) return;
+    playThud(0.28);
     reorderTasks(source.index, destination.index);
   };
 
@@ -291,12 +295,16 @@ export function TaskView() {
                 </div>
                 <button
                   type="button"
-                  onClick={openGlobalRadar}
+                  onClick={() => {
+                    playClack();
+                    openGlobalRadar();
+                  }}
+                  onMouseEnter={() => playTick()}
                   className="text-[10px] text-cyan-400 hover:text-cyan-300 font-mono font-semibold flex items-center gap-1 hover:underline cursor-pointer transition-colors"
-                  title="Scan & Invite Operatives via Global Radar"
+                  title="View Directory & Invite Members"
                 >
                   <span>
-                    {activeWorkspaceMembers.length === 1 ? '1 Architect' : `${activeWorkspaceMembers.length} Architects`}
+                    {activeWorkspaceMembers.length === 1 ? '1 Member' : `${activeWorkspaceMembers.length} Members`}
                   </span>
                   <Plus className="w-2.5 h-2.5 text-cyan-400" />
                 </button>
@@ -311,8 +319,12 @@ export function TaskView() {
           <div className="flex items-center p-1 rounded-xl bg-[#0d0e12] border border-white/10 shadow-inner">
             <button
               type="button"
-              onClick={() => setViewMode('list')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              onMouseEnter={() => playTick()}
+              onClick={() => {
+                playClack();
+                setViewMode('list');
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                 viewMode === 'list'
                   ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-[0_0_12px_rgba(0,240,255,0.2)]'
                   : 'text-zinc-400 hover:text-zinc-200'
@@ -323,8 +335,12 @@ export function TaskView() {
             </button>
             <button
               type="button"
-              onClick={() => setViewMode('board')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              onMouseEnter={() => playTick()}
+              onClick={() => {
+                playClack();
+                setViewMode('board');
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                 viewMode === 'board'
                   ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-[0_0_12px_rgba(0,240,255,0.2)]'
                   : 'text-zinc-400 hover:text-zinc-200'
@@ -335,8 +351,12 @@ export function TaskView() {
             </button>
             <button
               type="button"
-              onClick={() => setViewMode('calendar')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              onMouseEnter={() => playTick()}
+              onClick={() => {
+                playClack();
+                setViewMode('calendar');
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                 viewMode === 'calendar'
                   ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-[0_0_12px_rgba(0,240,255,0.2)]'
                   : 'text-zinc-400 hover:text-zinc-200'
@@ -350,15 +370,19 @@ export function TaskView() {
           {/* Quick Add Button */}
           <button
             type="button"
-            onClick={() => openAddTaskModal({
-              workspace_id: currentWorkspace ? currentWorkspace.id : undefined,
-              project_id: currentProject ? currentProject.id : null,
-              due_date: activeView === 'today' ? todayStr : null
-            })}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-zinc-950 text-xs font-bold transition-all shadow-[0_0_16px_rgba(0,240,255,0.4)] hover:shadow-[0_0_24px_rgba(0,240,255,0.6)]"
+            onMouseEnter={() => playTick()}
+            onClick={() => {
+              playClack();
+              openAddTaskModal({
+                workspace_id: currentWorkspace ? currentWorkspace.id : undefined,
+                project_id: currentProject ? currentProject.id : null,
+                due_date: activeView === 'today' ? todayStr : null
+              });
+            }}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-zinc-950 text-xs font-bold transition-all shadow-[0_0_16px_rgba(0,240,255,0.4)] hover:shadow-[0_0_24px_rgba(0,240,255,0.6)] cursor-pointer"
           >
             <Plus className="w-4 h-4 stroke-[2.5]" />
-            <span>Add Task</span>
+            <span className="font-mono">NEW TASK</span>
           </button>
         </div>
       </div>

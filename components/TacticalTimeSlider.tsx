@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Clock, Sun, Moon, Sunset, Compass, Sparkles } from 'lucide-react';
+import { Clock, Sun, Moon, Sunset } from 'lucide-react';
+import { useAudio } from '@/hooks/useAudio';
 
 interface TacticalTimeSliderProps {
   value?: string | null; // e.g. "14:30" or ""
@@ -35,9 +36,10 @@ function formatMinutesToTime(minutes: number): string {
 export function TacticalTimeSlider({
   value,
   onChange,
-  label = 'TACTICAL 24-HOUR TIME SLIDER',
+  label = '24-HOUR TIME SLIDER',
   className = '',
 }: TacticalTimeSliderProps) {
+  const { playTick, playClack } = useAudio();
   const initialMinutes = useMemo(() => parseTimeToMinutes(value), [value]);
   const [minutes, setMinutes] = useState<number>(initialMinutes);
   const [isDragging, setIsDragging] = useState(false);
@@ -57,27 +59,27 @@ export function TacticalTimeSlider({
   const phaseInfo = useMemo(() => {
     if (minutes >= 360 && minutes < 720) {
       return {
-        phase: 'MORNING SHIFT',
+        phase: 'MORNING',
         color: '#00E0FF',
         glow: 'rgba(0, 224, 255, 0.5)',
         icon: Sun,
-        tag: 'CYAN_01',
+        tag: 'CYAN',
       };
     } else if (minutes >= 720 && minutes < 1080) {
       return {
-        phase: 'AFTERNOON CYCLE',
+        phase: 'AFTERNOON',
         color: '#F59E0B',
         glow: 'rgba(245, 158, 11, 0.5)',
         icon: Sunset,
-        tag: 'AMBER_02',
+        tag: 'AMBER',
       };
     } else {
       return {
-        phase: 'NIGHT PROTOCOL',
+        phase: 'NIGHT',
         color: '#FF006E',
         glow: 'rgba(255, 0, 110, 0.5)',
         icon: Moon,
-        tag: 'MAGENTA_03',
+        tag: 'MAGENTA',
       };
     }
   }, [minutes]);
@@ -90,14 +92,17 @@ export function TacticalTimeSlider({
     const newMinutes = parseInt(e.target.value, 10);
     setMinutes(newMinutes);
     onChange(formatMinutesToTime(newMinutes));
+    playTick(0.18);
   };
 
   const handlePresetClick = (presetMinutes: number) => {
+    playClack(0.24);
     setMinutes(presetMinutes);
     onChange(formatMinutesToTime(presetMinutes));
   };
 
   const handleClear = () => {
+    playClack(0.24);
     onChange('');
   };
 

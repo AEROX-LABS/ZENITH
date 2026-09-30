@@ -23,6 +23,7 @@ import {
 import { Task, Priority } from '@/types';
 import { useApp } from '@/context/AppContext';
 import { formatDate } from '@/lib/parser';
+import { useAudio } from '@/hooks/useAudio';
 
 const PRIORITY_COLORS: Record<Priority, string> = {
   p1: 'bg-[#ff0055]/20 text-[#ff0055] border-[#ff0055]/40 hover:bg-[#ff0055]/30',
@@ -109,6 +110,8 @@ export function CalendarView({ tasks }: { tasks: Task[] }) {
     showToast 
   } = useApp();
 
+  const { playTick, playClack, playThud } = useAudio();
+
   const [currentDate, setCurrentDate] = useState(new Date());
 
   // Dropdown Popover State for active calendar cell
@@ -161,16 +164,19 @@ export function CalendarView({ tasks }: { tasks: Task[] }) {
   ];
 
   const handlePrevMonth = () => {
+    playClack();
     setCurrentDate(new Date(year, month - 1, 1));
     setActiveDropdownDate(null);
   };
 
   const handleNextMonth = () => {
+    playClack();
     setCurrentDate(new Date(year, month + 1, 1));
     setActiveDropdownDate(null);
   };
 
   const handleJumpToday = () => {
+    playClack();
     setCurrentDate(new Date());
     setActiveDropdownDate(null);
   };
@@ -220,6 +226,7 @@ export function CalendarView({ tasks }: { tasks: Task[] }) {
 
   // Trigger contextual dropdown popover for date
   const handleOpenDropdown = (dateStr: string) => {
+    playClack();
     setActiveDropdownDate(dateStr);
     setDropdownTitle('');
     setDropdownDescription('');
@@ -249,6 +256,7 @@ export function CalendarView({ tasks }: { tasks: Task[] }) {
         due_date: dateStr,
       });
 
+      playClack();
       showToast(`Task "${trimmed}" scheduled for ${dateStr}`, 'success');
       setActiveDropdownDate(null);
     } catch (err: unknown) {
@@ -299,6 +307,7 @@ export function CalendarView({ tasks }: { tasks: Task[] }) {
 
   const handleCellMouseEnter = (dateStr: string) => {
     if (activeDropdownDate || deepDiveDate) return;
+    playTick(0.12);
     if (hoverTimerRef.current) {
       clearTimeout(hoverTimerRef.current);
     }
@@ -306,6 +315,7 @@ export function CalendarView({ tasks }: { tasks: Task[] }) {
     hoverTimerRef.current = setTimeout(() => {
       setChargingDate(null);
       setDeepDiveDate(dateStr);
+      playThud(0.35);
     }, 1500);
   };
 
@@ -744,7 +754,7 @@ export function CalendarView({ tasks }: { tasks: Task[] }) {
                   <h3 className="text-xl font-bold text-zinc-100 flex items-center gap-2">
                     <span>{deepDiveDate}</span>
                     <span className="text-xs text-zinc-400 font-normal">
-                      ({deepDiveTasks.length} {deepDiveTasks.length === 1 ? 'TRANSMISSION' : 'TRANSMISSIONS'})
+                      ({deepDiveTasks.length} {deepDiveTasks.length === 1 ? 'TASK' : 'TASKS'})
                     </span>
                   </h3>
                 </div>
@@ -753,18 +763,22 @@ export function CalendarView({ tasks }: { tasks: Task[] }) {
                   <button
                     type="button"
                     onClick={() => {
+                      playClack();
                       openAddTaskModal({ due_date: deepDiveDate });
                       setDeepDiveDate(null);
                     }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-300 text-xs rounded-xl transition-all shadow-[0_0_10px_rgba(0,240,255,0.2)]"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-300 text-xs rounded-xl transition-all shadow-[0_0_10px_rgba(0,240,255,0.2)] cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>NEW TASK</span>
                   </button>
                   <button
                     type="button"
-                    onClick={() => setDeepDiveDate(null)}
-                    className="p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-white/10 rounded-xl transition-colors"
+                    onClick={() => {
+                      playClack();
+                      setDeepDiveDate(null);
+                    }}
+                    className="p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
                     title="Snap back (Esc)"
                   >
                     <X className="w-4 h-4" />

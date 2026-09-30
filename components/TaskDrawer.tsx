@@ -13,11 +13,13 @@ import {
   Plus, 
   Send,
   Flag,
-  Tag
+  Tag,
+  ChevronDown
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { Priority, Task } from '@/types';
 import { TacticalTimeSlider } from '@/components/TacticalTimeSlider';
+import { useAudio } from '@/hooks/useAudio';
 
 const PRIORITY_OPTIONS: { value: Priority; label: string; color: string }[] = [
   { value: 'p1', label: 'P1 Urgent', color: '#ff0055' },
@@ -38,9 +40,13 @@ function TaskDrawerContent({ task }: { task: Task }) {
     projects, 
     sections, 
     profiles,
+    activeWorkspaceMembers,
     openEntityModal,
     labels
   } = useApp();
+
+  const { playTick, playClack } = useAudio();
+  const [isAssigneeDropdownOpen, setIsAssigneeDropdownOpen] = useState(false);
 
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description || '');
@@ -247,32 +253,131 @@ function TaskDrawerContent({ task }: { task: Task }) {
                 </select>
               </div>
 
-              {/* Assignee selector */}
-              <div>
+              {/* Assignee selector - Clean Styled Dropdown populated from active Workspace */}
+              <div className="relative">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-zinc-400 font-mono flex items-center gap-1">
                     <User className="w-3 h-3 text-emerald-400" />
                     Assignee
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => openEntityModal('assignee')}
-                    className="text-[10px] text-emerald-400 hover:text-emerald-300 font-mono transition-colors"
-                    title="Dynamic Entity Protocol: Assignee"
-                  >
-                    [+] NEW
-                  </button>
+                  <span className="text-[10px] text-zinc-500 font-mono">
+                    WORKSPACE MEMBER
+                  </span>
                 </div>
-                <select
-                  value={task.assignee_id || ''}
-                  onChange={(e) => updateTask(task.id, { assignee_id: e.target.value || null })}
-                  className="w-full bg-[#12131a] border border-white/10 rounded-lg px-2.5 py-1.5 text-zinc-200 focus:outline-none focus:border-cyan-500/50"
-                >
-                  <option value="">Unassigned</option>
-                  {profiles.map(p => (
-                    <option key={p.id} value={p.id}>{p.name} ({p.role})</option>
-                  ))}
-                </select>
+
+                {(() => {
+                  const availableMembers = activeWorkspaceMembers && activeWorkspaceMembers.length > 0
+                    ? activeWorkspaceMembers
+                    : profiles;
+                  const currentAssignee = availableMembers.find(p => p.id === task.assignee_id) || profiles.find(p => p.id === task.assignee_id);
+
+                  return (
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          playClack();
+                          setIsAssigneeDropdownOpen(prev => !prev);
+                        }}
+                        className="w-full flex items-center justify-between bg-[#12131a] hover:bg-[#181922] border border-white/10 hover:border-emerald-500/40 focus:border-emerald-400 rounded-lg px-2.5 py-1.5 text-xs text-zinc-200 transition-all cursor-pointer font-mono"
+                        aria-haspopup="listbox"
+                        aria-expanded={isAssigneeDropdownOpen}
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          {currentAssignee ? (
+                            <>
+                              <div className="w-4 h-4 rounded-full overflow-hidden border border-emerald-500/40 flex-shrink-0">
+                                {currentAssignee.avatar_url ? (
+                                  <img src={currentAssignee.avatar_url} alt={currentAssignee.name} className="w-full h-full object-cover" />
+                                ) : (
+                                  <div className="w-full h-full bg-emerald-950 text-emerald-300 flex items-center justify-center text-[9px] font-bold">
+                                    {currentAssignee.name ? currentAssignee.name[0] : 'U'}
+                                  </div>
+                                )}
+                              </div>
+                              <span className="truncate font-medium text-emerald-200">{currentAssignee.name}</span>
+                              <span className="text-[10px] text-zinc-500 font-mono truncate">({currentAssignee.role || 'Member'})</span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="w-2 h-2 rounded-full bg-zinc-600 flex-shrink-0" />
+                              <span className="text-zinc-400">Unassigned</span>
+                            </>
+                          )}
+                        </div>
+                        <ChevronDown className={`w-3.5 h-3.5 text-zinc-500 transition-transform duration-150 ${isAssigneeDropdownOpen ? 'rotate-180 text-emerald-400' : ''}`} />
+                      </button>
+
+                      {/* Dropdown Menu */}
+                      {isAssigneeDropdownOpen && (
+                        <>
+                          <div
+                            className="fixed inset-0 z-30 cursor-default"
+                            onClick={() => {
+                              playTick();
+                              setIsAssigneeDropdownOpen(false);
+                            }}
+                          />
+                          <div className="absolute left-0 right-0 top-full mt-1.5 z-40 bg-[#000101]/95 border border-emerald-500/30 rounded-xl shadow-[0_0_30px_rgba(0,0,0,0.9),0_0_15px_rgba(0,245,212,0.15)] backdrop-blur-xl p-1.5 space-y-1 max-h-52 overflow-y-auto animate-in fade-in zoom-in-95 duration-100 font-mono">
+                            <button
+                              type="button"
+                              onMouseEnter={() => playTick()}
+                              onClick={() => {
+                                playClack();
+                                updateTask(task.id, { assignee_id: null });
+                                setIsAssigneeDropdownOpen(false);
+                              }}
+                              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
+                                !task.assignee_id
+                                  ? 'bg-emerald-950/40 text-emerald-300 border border-emerald-500/30 font-medium'
+                                  : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/5'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-zinc-600" />
+                                <span>Unassigned</span>
+                              </div>
+                              {!task.assignee_id && <Check className="w-3 h-3 text-emerald-400" />}
+                            </button>
+
+                            {availableMembers.map((p) => (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onMouseEnter={() => playTick()}
+                                onClick={() => {
+                                  playClack();
+                                  updateTask(task.id, { assignee_id: p.id });
+                                  setIsAssigneeDropdownOpen(false);
+                                }}
+                                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
+                                  task.assignee_id === p.id
+                                    ? 'bg-emerald-950/40 text-emerald-300 border border-emerald-500/30 font-medium'
+                                    : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/5'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2 truncate">
+                                  <div className="w-4 h-4 rounded-full overflow-hidden border border-emerald-500/40 flex-shrink-0">
+                                    {p.avatar_url ? (
+                                      <img src={p.avatar_url} alt={p.name} className="w-full h-full object-cover" />
+                                    ) : (
+                                      <div className="w-full h-full bg-emerald-950 text-emerald-300 flex items-center justify-center text-[9px] font-bold">
+                                        {p.name ? p.name[0] : 'U'}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <span className="truncate">{p.name}</span>
+                                  <span className="text-[10px] text-zinc-500 font-mono">({p.role || 'Member'})</span>
+                                </div>
+                                {task.assignee_id === p.id && <Check className="w-3 h-3 text-emerald-400 flex-shrink-0" />}
+                              </button>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Due Date input */}

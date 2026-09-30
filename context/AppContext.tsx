@@ -63,6 +63,7 @@ export interface AppContextType {
   setIsCreateWorkspaceOpen: (open: boolean) => void;
   workspaceMembers: WorkspaceMember[];
   operatives: UserProfile[];
+  activeWorkspaceMembers: UserProfile[];
   addOperativeToWorkspace: (operativeId: string, workspaceId?: string) => Promise<boolean>;
   shareSystemWithOperative: (operativeId: string, templateId?: string) => Promise<boolean>;
 
@@ -164,12 +165,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [labels, setLabels] = useState<LabelItem[]>(INITIAL_LABELS);
   const [karma, setKarma] = useState<KarmaProfile>(INITIAL_KARMA);
   const [user, setUserState] = useState<UserProfile | null>(null);
-  const [profiles, setProfiles] = useState<UserProfile[]>(TEAM_PROFILES);
+  const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [customTemplates, setCustomTemplates] = useState<CustomTemplate[]>([]);
 
   // Multiplayer Networking & Workspace Members
   const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMember[]>([]);
-  const [operatives, setOperatives] = useState<UserProfile[]>(INITIAL_OPERATIVES);
+  const [operatives, setOperatives] = useState<UserProfile[]>([]);
   const [isGlobalRadarOpen, setIsGlobalRadarOpen] = useState(false);
 
   // Dynamic Entity Creation Protocol Modal
@@ -329,18 +330,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setWorkspaceMembers(memData as WorkspaceMember[]);
       }
 
-      // 7. Fetch operatives from profiles table
+      // 7. Fetch real members from profiles table
       const { data: profData, error: profError } = await supabase
         .from('profiles')
         .select('*');
-      if (!profError && profData && profData.length > 0) {
-        const existingIds = new Set(profData.map(p => p.id));
-        const mergedOperatives = [
-          ...profData as UserProfile[],
-          ...INITIAL_OPERATIVES.filter(o => !existingIds.has(o.id)),
-        ];
-        setOperatives(mergedOperatives);
-        setProfiles(mergedOperatives);
+      if (!profError && profData) {
+        setOperatives(profData as UserProfile[]);
+        setProfiles(profData as UserProfile[]);
       }
 
       // 8. Fetch user labels
@@ -360,7 +356,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           name: stored.name,
           email: stored.email,
           avatar_url: stored.avatar_url || null,
-          role: stored.role || 'Grandmaster Architect',
+          role: stored.role || 'Member',
         }]);
       }
     } catch (err) {
@@ -383,10 +379,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             activeSession = existingSession;
             activeUser = {
               id: existingSession.user.id,
-              name: existingSession.user.user_metadata?.name || existingSession.user.email?.split('@')[0] || 'Zenith Operator',
+              name: existingSession.user.user_metadata?.name || existingSession.user.email?.split('@')[0] || 'Member',
               email: existingSession.user.email || '',
               avatar_url: existingSession.user.user_metadata?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-              role: 'Zenith Operator',
+              role: existingSession.user.user_metadata?.role || 'Member',
             };
             storage.setUser(activeUser);
           }
@@ -478,10 +474,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           if (newSession?.user) {
             const newUser: UserProfile = {
               id: newSession.user.id,
-              name: newSession.user.user_metadata?.name || newSession.user.email?.split('@')[0] || 'Zenith Operator',
+              name: newSession.user.user_metadata?.name || newSession.user.email?.split('@')[0] || 'Member',
               email: newSession.user.email || '',
               avatar_url: newSession.user.user_metadata?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-              role: 'Zenith Operator',
+              role: newSession.user.user_metadata?.role || 'Member',
             };
             setSessionState(newSession);
             setUserState(newUser);
@@ -911,6 +907,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     return newWs;
   }, [user?.id]);
+
+  // Active Workspace Members (strictly real members of current workspace)
+  const activeWorkspaceMembers = useMemo(() => {
+    const list: UserProfile[] = [];
+    if (user) {
+      list.push(user);
+    }
+    if (!currentWorkspace) {
+      return list;
+    }
+    const wsMembers = workspaceMembers.filter(m => m.workspace_id === currentWorkspace.id);
+    wsMembers.forEach(m => {
+      const found = profiles.find(p => p.id === m.user_id) || operatives.find(o => o.id === m.user_id);
+      if (found && !list.some(p => p.id === found.id)) {
+        list.push(found);
+      } else if (!list.some(p => p.id === m.user_id)) {
+        list.push({
+          id: m.user_id,
+          name: m.role ? `Member (${m.role})` : `Member ${m.user_id.slice(-4)}`,
+          email: 'member@aerox.dev',
+          role: m.role || 'Member',
+        });
+      }
+    });
+    return list;
+  }, [currentWorkspace, workspaceMembers, user, profiles, operatives]);
 
   // Multiplayer: Add Operative to Workspace
   const addOperativeToWorkspace = useCallback(async (operativeId: string, workspaceId?: string): Promise<boolean> => {
@@ -1551,6 +1573,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setIsCreateWorkspaceOpen,
         workspaceMembers,
         operatives,
+        activeWorkspaceMembers,
         addOperativeToWorkspace,
         shareSystemWithOperative,
         isGlobalRadarOpen,

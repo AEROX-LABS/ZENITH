@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Task, Section, Priority } from '@/types';
 import { useApp } from '@/context/AppContext';
+import { useAudio } from '@/hooks/useAudio';
 
 interface KanbanCardProps {
   task: Task;
@@ -208,6 +209,8 @@ export function KanbanBoard({ tasks }: { tasks: Task[] }) {
     profiles 
   } = useApp();
   
+  const { playTick, playClack, playThud } = useAudio();
+  
   const mounted = React.useSyncExternalStore(
     () => () => {},
     () => true,
@@ -284,6 +287,9 @@ export function KanbanBoard({ tasks }: { tasks: Task[] }) {
     const targetCol = columns.find(c => c.id === destColId);
     const isDone = targetCol?.isDoneStage || destColId === 'stage_done';
 
+    // Play tactile soft impact thud on card drop
+    playThud(0.28);
+
     // Update task's section and completed status
     moveTaskStage(
       draggableId, 
@@ -295,6 +301,7 @@ export function KanbanBoard({ tasks }: { tasks: Task[] }) {
   const handleQuickAddSubmit = (columnId: string, isDoneStage: boolean) => {
     if (!newCardTitle.trim()) return;
     const isDefaultStage = columnId.startsWith('stage_') || columnId === 'unsectioned';
+    playClack();
     addTask({
       title: newCardTitle.trim(),
       section_id: isDefaultStage ? null : columnId,

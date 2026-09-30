@@ -25,76 +25,16 @@ export const INITIAL_LABELS: LabelItem[] = [
   { id: 'lbl_hotfix', name: 'Hotfix', color: '#f59e0b', created_at: new Date().toISOString() },
 ];
 
-export const INITIAL_OPERATIVES: UserProfile[] = [
-  {
-    id: 'usr_aria',
-    name: 'Aria Stark',
-    email: 'aria@aerox.dev',
-    avatar_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80',
-    role: 'Cybernetics Lead',
-  },
-  {
-    id: 'usr_kai',
-    name: 'Kai Tanaka',
-    email: 'kai@aerox.dev',
-    avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
-    role: 'Neural Interface Specialist',
-  },
-  {
-    id: 'usr_elena',
-    name: 'Dr. Elena Rostova',
-    email: 'elena@aerox.dev',
-    avatar_url: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&q=80',
-    role: 'Design Systems Architect',
-  },
-  {
-    id: 'usr_devon',
-    name: 'Devon Vance',
-    email: 'devon@aerox.dev',
-    avatar_url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80',
-    role: 'Kernel Security Specialist',
-  },
-  {
-    id: 'usr_sora',
-    name: 'Sora Hayashi',
-    email: 'sora@aerox.dev',
-    avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-    role: 'Quantum Pipeline Engineer',
-  },
-];
+export const INITIAL_OPERATIVES: UserProfile[] = [];
 
 export const INITIAL_USER: UserProfile = {
-  id: 'usr_zenith_master',
-  name: 'Zenith Architect',
-  email: 'zenith@aerox.dev',
-  avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-  role: 'Grandmaster Architect',
+  id: 'usr_default',
+  name: 'Workspace Member',
+  email: 'member@aerox.dev',
+  role: 'Member',
 };
 
-export const TEAM_PROFILES: UserProfile[] = [
-  INITIAL_USER,
-  {
-    id: 'usr_aria',
-    name: 'Aria Stark',
-    email: 'aria@aerox.dev',
-    avatar_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80',
-    role: 'Product Lead',
-  },
-  {
-    id: 'usr_kai',
-    name: 'Kai Tanaka',
-    email: 'kai@aerox.dev',
-    avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
-    role: 'Frontend Specialist',
-  },
-  {
-    id: 'usr_elena',
-    name: 'Dr. Elena Rostova',
-    email: 'elena@aerox.dev',
-    avatar_url: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&q=80',
-    role: 'Design Systems Lead',
-  },
-];
+export const TEAM_PROFILES: UserProfile[] = [];
 
 export const INITIAL_WORKSPACES: Workspace[] = [
   {
@@ -196,7 +136,7 @@ export const INITIAL_TASKS: Task[] = [
     deadline: 'Tonight EOD',
     parent_id: null,
     labels: ['Architecture', 'Core', 'V1'],
-    assignee_id: 'usr_zenith_master',
+    assignee_id: null,
     order: 0,
     comments: [
       {
@@ -230,7 +170,7 @@ export const INITIAL_TASKS: Task[] = [
     deadline: '2:00 PM',
     parent_id: 'task_parent_1',
     labels: ['Frontend', 'Tree'],
-    assignee_id: 'usr_kai',
+    assignee_id: null,
     order: 0,
     comments: [],
     created_at: new Date().toISOString(),
@@ -250,7 +190,7 @@ export const INITIAL_TASKS: Task[] = [
     deadline: '5:00 PM',
     parent_id: 'task_parent_1',
     labels: ['Parser', 'Regex'],
-    assignee_id: 'usr_zenith_master',
+    assignee_id: null,
     order: 1,
     comments: [],
     created_at: new Date().toISOString(),
@@ -269,7 +209,7 @@ export const INITIAL_TASKS: Task[] = [
     deadline: 'Tomorrow Noon',
     parent_id: 'task_parent_1',
     labels: ['Animation'],
-    assignee_id: 'usr_aria',
+    assignee_id: null,
     order: 2,
     comments: [],
     created_at: new Date().toISOString(),
@@ -289,7 +229,7 @@ export const INITIAL_TASKS: Task[] = [
     deadline: 'Friday Sprint Close',
     parent_id: null,
     labels: ['Supabase', 'Realtime'],
-    assignee_id: 'usr_kai',
+    assignee_id: null,
     order: 0,
     comments: [],
     created_at: new Date().toISOString(),
@@ -309,7 +249,7 @@ export const INITIAL_TASKS: Task[] = [
     deadline: null,
     parent_id: null,
     labels: ['Design', 'CSS'],
-    assignee_id: 'usr_elena',
+    assignee_id: null,
     order: 0,
     comments: [],
     created_at: new Date().toISOString(),
@@ -327,7 +267,7 @@ export const INITIAL_TASKS: Task[] = [
     deadline: 'Today EOD',
     parent_id: null,
     labels: ['Mobile', 'Responsive'],
-    assignee_id: 'usr_zenith_master',
+    assignee_id: null,
     order: 0,
     comments: [],
     created_at: new Date().toISOString(),
@@ -345,7 +285,7 @@ export const INITIAL_TASKS: Task[] = [
     deadline: null,
     parent_id: null,
     labels: ['Icons', 'Ready'],
-    assignee_id: 'usr_aria',
+    assignee_id: null,
     order: 0,
     comments: [],
     created_at: new Date().toISOString(),
@@ -366,7 +306,7 @@ export const INITIAL_TASKS: Task[] = [
     deadline: 'Next Monday',
     parent_id: null,
     labels: ['Templates', 'Feature'],
-    assignee_id: 'usr_zenith_master',
+    assignee_id: null,
     order: 0,
     comments: [],
     created_at: new Date().toISOString(),
@@ -384,7 +324,7 @@ export const INITIAL_TASKS: Task[] = [
     deadline: '20:00',
     parent_id: null,
     labels: ['Telemetry', 'Operator'],
-    assignee_id: 'usr_aria',
+    assignee_id: null,
     order: 0,
     comments: [],
     created_at: new Date().toISOString(),
@@ -422,34 +362,19 @@ export const INITIAL_TASKS: Task[] = [
     deadline: 'End of month',
     parent_id: null,
     labels: ['Finance'],
-    assignee_id: 'usr_zenith_master',
+    assignee_id: null,
     order: 1,
     comments: [],
     created_at: new Date().toISOString(),
   },
 ];
 
-// Helper to generate 7-day history ending today
-function generateInitialKarmaHistory(): { date: string; count: number }[] {
-  const history: { date: string; count: number }[] = [];
-  const counts = [3, 6, 5, 8, 4, 7, 4]; // realistic week of task completion
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    history.push({
-      date: formatDate(d),
-      count: counts[6 - i],
-    });
-  }
-  return history;
-}
-
 export const INITIAL_KARMA: KarmaProfile = {
-  points: 1240,
-  streak_days: 9, // Active 9-day streak!
+  points: 0,
+  streak_days: 0,
   daily_goal: 5,
   weekly_goal: 25,
-  history: generateInitialKarmaHistory(),
+  history: [],
   last_active_date: todayStr,
 };
 
