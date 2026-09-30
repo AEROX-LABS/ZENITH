@@ -3,7 +3,7 @@
 import React from 'react';
 import { X } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
-import { OtpAuthView } from '@/components/OtpAuthView';
+import { MagicLinkAuthView } from '@/components/MagicLinkAuthView';
 
 export function AuthModal() {
   const { isAuthModalOpen, setIsAuthModalOpen } = useApp();
@@ -24,7 +24,7 @@ export function AuthModal() {
           <X className="w-4 h-4" />
         </button>
 
-        <OtpAuthView onSuccess={() => setIsAuthModalOpen(false)} />
+        <MagicLinkAuthView onSuccess={() => setIsAuthModalOpen(false)} />
       </div>
     </div>
   );

@@ -11,19 +11,21 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   const isLoginPage = pathname === '/login';
+  const isAuthCallbackPage = pathname?.startsWith('/auth');
+  const isPublicAuthRoute = isLoginPage || isAuthCallbackPage;
 
   useEffect(() => {
     if (!isAuthLoading) {
-      if (!user && !isLoginPage) {
+      if (!user && !isPublicAuthRoute) {
         router.replace('/login');
       } else if (user && isLoginPage) {
         router.replace('/');
       }
     }
-  }, [user, isAuthLoading, isLoginPage, router]);
+  }, [user, isAuthLoading, isLoginPage, isPublicAuthRoute, router]);
 
-  // If on login page, let it render directly
-  if (isLoginPage) {
+  // If on public auth route (login or callback), let it render directly
+  if (isPublicAuthRoute) {
     return <>{children}</>;
   }
 
