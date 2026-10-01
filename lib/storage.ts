@@ -1,4 +1,4 @@
-import { Task, Project, Section, KarmaProfile, UserProfile, Workspace, CustomTemplate, WorkspaceMember, LabelItem } from '@/types';
+import { Task, Project, Section, KarmaProfile, UserProfile, Workspace, CustomTemplate, WorkspaceMember, LabelItem, NeuralNote, ArchivedNeuralNote } from '@/types';
 import { formatDate } from '@/lib/parser';
 import { INITIAL_CUSTOM_TEMPLATES } from '@/lib/templates';
 
@@ -14,9 +14,52 @@ const STORAGE_KEYS = {
   OPERATIVES: 'aerox_zenith_operatives_v1',
   CUSTOM_TEMPLATES: 'aerox_zenith_custom_templates_v1',
   LABELS: 'aerox_zenith_labels_v1',
+  NOTES: 'aerox_zenith_notes_v1',
+  ARCHIVED_NOTES: 'aerox_zenith_archived_notes_v1',
 };
 
 export { INITIAL_CUSTOM_TEMPLATES };
+
+export const INITIAL_NOTES: NeuralNote[] = [
+  {
+    id: 'note_neural_1',
+    user_id: null,
+    color: '#00E0FF',
+    order_index: 0,
+    blocks: [
+      { id: 'blk_1', type: 'h1', text: 'QUANTUM ARCHITECTURE // V3', depth: 0 },
+      { id: 'blk_2', type: 'bullet', text: 'Optimize LLVM intermediate representation bytecode', depth: 1 },
+      { id: 'blk_3', type: 'bullet', text: 'Enforce memory safety barriers on register transfers', depth: 2 },
+      { id: 'blk_4', type: 'text', text: 'Telemetry streams synchronized at 1000Hz via WebSocket tunnel', depth: 1 },
+    ],
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'note_neural_2',
+    user_id: null,
+    color: '#FF006E',
+    order_index: 1,
+    blocks: [
+      { id: 'blk_5', type: 'h2', text: 'TACTICAL DEPLOYMENT VECTORS', depth: 0 },
+      { id: 'blk_6', type: 'bullet', text: 'Verify edge computing nodes across regional clusters', depth: 1 },
+      { id: 'blk_7', type: 'bullet', text: 'Inspect cryptographic handshake latencies (<2ms)', depth: 2 },
+    ],
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'note_neural_3',
+    user_id: null,
+    color: '#00F5D4',
+    order_index: 2,
+    blocks: [
+      { id: 'blk_8', type: 'h1', text: 'NEURAL LINK SYNC PROTOCOLS', depth: 0 },
+      { id: 'blk_9', type: 'bullet', text: 'Calibrate bio-telemetry impedance threshold', depth: 1 },
+      { id: 'blk_10', type: 'bullet', text: 'Activate sub-millisecond audio feedback engine', depth: 1 },
+      { id: 'blk_11', type: 'bullet', text: 'Buffer overflow safeguards set to armed', depth: 2 },
+    ],
+    created_at: new Date().toISOString(),
+  },
+];
 
 export const INITIAL_LABELS: LabelItem[] = [
   { id: 'lbl_critical', name: 'Critical', color: '#ff0055', created_at: new Date().toISOString() },
@@ -201,8 +244,8 @@ export const INITIAL_TASKS: Task[] = [
     workspace_id: '81db2b29-fc5c-4d37-8ffc-991f8c4749f7',
     project_id: 'proj_core',
     section_id: 'sec_core_arch',
-    title: 'Integrate canvas-confetti burst on task completion',
-    description: 'Multi-angle particle explosion with electric cyan and magenta embers whenever a task checkbox is ticked.',
+    title: 'Plasma Shockwave & Glitch Disintegration on task completion',
+    description: 'Phosphor emerald kinetic shockwave with digital glitch tear and smooth collapse when a task checkbox is ticked.',
     priority: 'p2',
     completed: false,
     due_date: tomorrowStr,
@@ -593,6 +636,42 @@ export const storage = {
       localStorage.setItem(STORAGE_KEYS.LABELS, JSON.stringify(labels));
     } catch (e) {
       console.warn('LocalStorage setLabels failed', e);
+    }
+  },
+
+  getNotes: (): NeuralNote[] => {
+    if (typeof window === 'undefined') return INITIAL_NOTES;
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.NOTES);
+      return data ? JSON.parse(data) : INITIAL_NOTES;
+    } catch {
+      return INITIAL_NOTES;
+    }
+  },
+  setNotes: (notes: NeuralNote[]) => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(STORAGE_KEYS.NOTES, JSON.stringify(notes));
+    } catch (e) {
+      console.warn('LocalStorage setNotes failed', e);
+    }
+  },
+
+  getArchivedNotes: (): ArchivedNeuralNote[] => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.ARCHIVED_NOTES);
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  },
+  setArchivedNotes: (notes: ArchivedNeuralNote[]) => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(STORAGE_KEYS.ARCHIVED_NOTES, JSON.stringify(notes));
+    } catch (e) {
+      console.warn('LocalStorage setArchivedNotes failed', e);
     }
   },
 };

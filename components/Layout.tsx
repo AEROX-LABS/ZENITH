@@ -21,8 +21,11 @@ import {
   Users,
   Workflow,
   Tag,
-  Hash,
-  Activity
+  Activity,
+  ChevronDown,
+  Check,
+  Settings,
+  Brain
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { formatDate } from '@/lib/parser';
@@ -32,6 +35,9 @@ import { GlobalRadarButton } from '@/components/GlobalRadarButton';
 import { GlobalNetworkPanel } from '@/components/GlobalNetworkPanel';
 import { DynamicEntityModal, MagneticButton } from '@/components/DynamicEntityModal';
 import { OperatorProfileModal } from '@/components/OperatorProfileModal';
+import { PurgeWorkspaceModal } from '@/components/PurgeWorkspaceModal';
+import { PlasmaShockwaveHost } from '@/components/PlasmaShockwave';
+import { NeuralCanvasModal } from '@/components/NeuralCanvasModal';
 import { useAudio } from '@/hooks/useAudio';
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -45,6 +51,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
     setUser,
     signOut,
     workspaces,
+    activeWorkspace,
+    activeWorkspaceId,
     setIsCreateWorkspaceOpen,
     openAddTaskModal,
     setIsTemplateModalOpen,
@@ -59,10 +67,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
     filterLabel,
     setFilterLabel,
     openOperatorProfile,
+    openPurgeWorkspaceModal,
+    shockwaves,
+    removeShockwave,
+    openNeuralCanvas,
   } = useApp();
 
   const { playTick, playClack } = useAudio();
 
+  const [isActiveWorkspaceMenuOpen, setIsActiveWorkspaceMenuOpen] = useState(false);
+  const [workspaceSettingsOpenId, setWorkspaceSettingsOpenId] = useState<string | null>(null);
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectColor, setNewProjectColor] = useState('#00f0ff');
@@ -112,8 +126,123 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        {/* Quick Add Neon Trigger Button */}
-        <div className="p-3">
+        {/* Active Workspace Selector & Settings Dropdown Trigger */}
+        <div className="px-3 pt-3">
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                playClack();
+                setIsActiveWorkspaceMenuOpen(prev => !prev);
+              }}
+              onMouseEnter={() => playTick()}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-black/40 hover:bg-white/5 border border-white/10 hover:border-cyan-500/40 text-xs font-mono transition-all group cursor-pointer"
+              title="Active Workspace Settings & Switcher"
+              aria-expanded={isActiveWorkspaceMenuOpen}
+            >
+              <div className="flex items-center gap-2 min-w-0 pr-1">
+                <span
+                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                  style={{
+                    backgroundColor: activeWorkspace?.color || '#00F5D4',
+                    boxShadow: `0 0 8px ${activeWorkspace?.color || '#00F5D4'}80`
+                  }}
+                />
+                <span className="truncate font-semibold text-zinc-200 group-hover:text-white">
+                  {activeWorkspace?.name || 'Personal Space'}
+                </span>
+                <span className="text-[9px] px-1 py-0.2 rounded font-mono text-zinc-500 bg-white/5 uppercase">
+                  {activeWorkspace?.type || 'personal'}
+                </span>
+              </div>
+              <ChevronDown className={`w-3.5 h-3.5 text-zinc-500 group-hover:text-cyan-400 transition-transform ${isActiveWorkspaceMenuOpen ? 'rotate-180 text-cyan-400' : ''}`} />
+            </button>
+
+            {/* Active Workspace Dropdown Menu Popover */}
+            {isActiveWorkspaceMenuOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-40 cursor-default"
+                  onClick={() => setIsActiveWorkspaceMenuOpen(false)}
+                />
+                <div className="absolute left-0 top-full mt-1.5 w-full rounded-xl bg-[#000101]/95 border border-white/10 shadow-[0_0_40px_rgba(0,0,0,0.9),0_0_15px_rgba(0,224,255,0.1)] backdrop-blur-2xl p-2.5 space-y-2 z-50 font-mono text-xs animate-in fade-in zoom-in-95 duration-150">
+                  <div className="px-2 py-1 border-b border-white/10 flex items-center justify-between">
+                    <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Active Workspace</span>
+                    <span className="text-[9px] text-cyan-400 font-mono">ONLINE</span>
+                  </div>
+
+                  {/* Switch Workspace List */}
+                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                    {workspaces.map((ws) => (
+                      <button
+                        key={ws.id}
+                        type="button"
+                        onClick={() => {
+                          playClack();
+                          setActiveView(ws.id);
+                          setIsActiveWorkspaceMenuOpen(false);
+                          if (typeof window !== 'undefined') {
+                            window.history.pushState(null, '', `/workspace/${ws.id}`);
+                          }
+                        }}
+                        onMouseEnter={() => playTick()}
+                        className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
+                          ws.id === activeWorkspace?.id
+                            ? 'bg-cyan-950/40 text-cyan-300 border border-cyan-500/30 font-medium'
+                            : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/5'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <span
+                            className="w-2 h-2 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: ws.color }}
+                          />
+                          <span className="truncate">{ws.name}</span>
+                        </div>
+                        {ws.id === activeWorkspace?.id && <Check className="w-3 h-3 text-cyan-400 flex-shrink-0" />}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Create Workspace Trigger */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsActiveWorkspaceMenuOpen(false);
+                      setIsCreateWorkspaceOpen(true);
+                    }}
+                    className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-zinc-400 hover:text-cyan-300 hover:bg-cyan-500/10 transition-colors text-xs cursor-pointer border border-transparent hover:border-cyan-500/30"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Create Workspace...</span>
+                  </button>
+
+                  {/* Bottom Aligned Destructive Action Button */}
+                  {activeWorkspace && (
+                    <div className="pt-2 border-t border-white/10">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          playClack();
+                          setIsActiveWorkspaceMenuOpen(false);
+                          openPurgeWorkspaceModal(activeWorkspace);
+                        }}
+                        onMouseEnter={() => playTick()}
+                        className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg border border-[#FF006E]/30 hover:border-[#FF006E] hover:bg-[#FF006E]/10 text-[#FF006E] text-xs font-mono transition-all cursor-pointer shadow-[0_0_12px_rgba(255,0,110,0.15)] hover:shadow-[0_0_20px_rgba(255,0,110,0.35)] active:scale-95"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>[ PURGE WORKSPACE ]</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Tactical Action Triggers: Quick Add & Neural Canvas */}
+        <div className="p-3 space-y-2">
           <button
             type="button"
             onClick={() => openAddTaskModal()}
@@ -127,6 +256,23 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </div>
             <span className="text-[10px] text-zinc-500 font-mono px-1.5 py-0.5 rounded bg-black/40 border border-white/5 flex items-center gap-0.5">
               <Command className="w-2.5 h-2.5" />K
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => openNeuralCanvas()}
+            className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-950/40 via-[#00E0FF]/10 to-pink-950/20 hover:from-cyan-950/60 hover:to-pink-950/40 text-cyan-300 hover:text-cyan-200 border border-cyan-500/30 hover:border-cyan-400/60 text-xs font-mono font-semibold transition-all group shadow-[0_0_15px_rgba(0,224,255,0.1)]"
+            title="Open Neural Canvas Tactical Quick-Note System"
+          >
+            <div className="flex items-center gap-2">
+              <div className="w-5 h-5 rounded-md bg-gradient-to-br from-[#00E0FF] to-[#FF006E] text-zinc-950 flex items-center justify-center shadow-[0_0_10px_rgba(0,224,255,0.4)]">
+                <Brain className="w-3.5 h-3.5 stroke-[2.5]" />
+              </div>
+              <span className="tracking-wider">[+] SCRATCHPAD</span>
+            </div>
+            <span className="text-[10px] text-cyan-400/80 font-mono px-1.5 py-0.5 rounded bg-black/60 border border-cyan-500/30 flex items-center gap-0.5">
+              <Command className="w-2.5 h-2.5" />J
             </span>
           </button>
         </div>
@@ -234,47 +380,140 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 const isActive = activeView === ws.id;
 
                 return (
-                  <button
-                    key={ws.id}
-                    type="button"
-                    onClick={() => {
-                      setActiveView(ws.id);
-                      if (typeof window !== 'undefined') {
-                        window.history.pushState(null, '', `/workspace/${ws.id}`);
-                      }
-                    }}
-                    className={`w-full group/ws flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-all ${
-                      isActive
-                        ? 'bg-[#181924] text-zinc-100 border border-white/15 font-semibold shadow-[0_0_12px_rgba(0,0,0,0.5)]'
-                        : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5 border border-transparent'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <span
-                        className="w-2.5 h-2.5 rounded-full flex-shrink-0 transition-transform group-hover/ws:scale-125"
-                        style={{ 
-                          backgroundColor: ws.color, 
-                          boxShadow: `0 0 8px ${ws.color}80` 
-                        }}
-                      />
-                      <span className="truncate">{ws.name}</span>
-                      <span className="text-[9px] px-1 py-0.2 rounded font-mono text-zinc-500 bg-white/5 flex items-center gap-0.5">
-                        {ws.type === 'group' ? (
-                          <Users className="w-2.5 h-2.5 text-purple-400" />
-                        ) : (
-                          <User className="w-2.5 h-2.5 text-cyan-400" />
-                        )}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-1 flex-shrink-0" suppressHydrationWarning>
-                      {wsTaskCount > 0 && (
-                        <span suppressHydrationWarning className="text-[10px] font-mono text-zinc-500">
-                          {wsTaskCount}
+                  <div key={ws.id} className="group/ws relative flex items-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playClack();
+                        setActiveView(ws.id);
+                        if (typeof window !== 'undefined') {
+                          window.history.pushState(null, '', `/workspace/${ws.id}`);
+                        }
+                      }}
+                      onMouseEnter={() => playTick()}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-all cursor-pointer ${
+                        isActive
+                          ? 'bg-[#181924] text-zinc-100 border border-white/15 font-semibold shadow-[0_0_12px_rgba(0,0,0,0.5)]'
+                          : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5 border border-transparent'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0 pr-6">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full flex-shrink-0 transition-transform group-hover/ws:scale-125"
+                          style={{ 
+                            backgroundColor: ws.color, 
+                            boxShadow: `0 0 8px ${ws.color}80` 
+                          }}
+                        />
+                        <span className="truncate">{ws.name}</span>
+                        <span className="text-[9px] px-1 py-0.2 rounded font-mono text-zinc-500 bg-white/5 flex items-center gap-0.5">
+                          {ws.type === 'group' ? (
+                            <Users className="w-2.5 h-2.5 text-purple-400" />
+                          ) : (
+                            <User className="w-2.5 h-2.5 text-cyan-400" />
+                          )}
                         </span>
-                      )}
+                      </div>
+
+                      <div className="flex items-center gap-1 flex-shrink-0" suppressHydrationWarning>
+                        {wsTaskCount > 0 && (
+                          <span suppressHydrationWarning className="text-[10px] font-mono text-zinc-500 group-hover/ws:hidden">
+                            {wsTaskCount}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+
+                    <div className="absolute right-2 opacity-0 group-hover/ws:opacity-100 flex items-center gap-1 transition-opacity">
+                      {/* Workspace Settings Menu Trigger */}
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            playClack();
+                            setWorkspaceSettingsOpenId(prev => prev === ws.id ? null : ws.id);
+                          }}
+                          onMouseEnter={() => playTick()}
+                          title={`Workspace Settings: ${ws.name}`}
+                          className={`p-1.5 rounded-lg text-zinc-500 hover:text-cyan-400 hover:bg-cyan-500/10 border transition-all cursor-pointer ${
+                            workspaceSettingsOpenId === ws.id ? 'border-cyan-500/40 text-cyan-400 bg-cyan-500/10' : 'border-transparent'
+                          }`}
+                        >
+                          <Settings className="w-3 h-3" />
+                        </button>
+
+                        {/* Workspace Settings Menu Popover */}
+                        {workspaceSettingsOpenId === ws.id && (
+                          <>
+                            <div
+                              className="fixed inset-0 z-40 cursor-default"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setWorkspaceSettingsOpenId(null);
+                              }}
+                            />
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute right-0 top-full mt-1.5 w-60 rounded-xl bg-[#000101]/95 border border-white/10 shadow-[0_0_30px_rgba(0,0,0,0.9),0_0_15px_rgba(0,224,255,0.1)] backdrop-blur-2xl p-2.5 space-y-2 z-50 font-mono text-xs animate-in fade-in zoom-in-95 duration-150"
+                            >
+                              <div className="px-2 py-1 border-b border-white/10 flex items-center justify-between">
+                                <span className="text-[10px] text-zinc-400 font-bold uppercase truncate max-w-[130px]">
+                                  {ws.name}
+                                </span>
+                                <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-white/5 text-zinc-500 border border-white/5">
+                                  {ws.type}
+                                </span>
+                              </div>
+
+                              <div className="px-2 py-1 text-[10px] text-zinc-400 space-y-1">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-zinc-500">COLOR ACCENT</span>
+                                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: ws.color }} />
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-zinc-500">TASKS</span>
+                                  <span>{wsTaskCount}</span>
+                                </div>
+                              </div>
+
+                              {/* Bottom Aligned Destructive Action Button */}
+                              <div className="pt-2 border-t border-white/10">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    playClack();
+                                    setWorkspaceSettingsOpenId(null);
+                                    openPurgeWorkspaceModal(ws);
+                                  }}
+                                  onMouseEnter={() => playTick()}
+                                  className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg border border-[#FF006E]/30 hover:border-[#FF006E] hover:bg-[#FF006E]/10 text-[#FF006E] text-xs font-mono transition-all cursor-pointer shadow-[0_0_12px_rgba(255,0,110,0.15)] hover:shadow-[0_0_20px_rgba(255,0,110,0.35)] active:scale-95"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <span>[ PURGE WORKSPACE ]</span>
+                                </button>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Purge Workspace Quick Trigger Button */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          playClack();
+                          openPurgeWorkspaceModal(ws);
+                        }}
+                        onMouseEnter={() => playTick()}
+                        title={`Purge Workspace "${ws.name}"`}
+                        className="p-1.5 rounded-lg text-zinc-500 hover:text-[#FF006E] hover:bg-[#FF006E]/15 border border-transparent hover:border-[#FF006E]/30 transition-all cursor-pointer"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -593,6 +832,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <span>STREAK: {karma.streak_days}D</span>
             </button>
 
+            {/* Neural Canvas Top HUD Trigger */}
+            <button
+              type="button"
+              onClick={() => openNeuralCanvas()}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/20 hover:border-cyan-400/60 text-xs font-mono font-semibold shadow-[0_0_10px_rgba(0,224,255,0.15)] transition-all cursor-pointer"
+              title="Open Neural Canvas Tactical Quick-Note System"
+            >
+              <Brain className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+              <span className="hidden sm:inline">[ NEURAL CANVAS ]</span>
+            </button>
+
             {/* Custom System Hub Trigger */}
             <button
               type="button"
@@ -721,6 +971,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Profile & Analytics Modal */}
       <OperatorProfileModal />
+
+      {/* Purge Workspace Anti-Accident Confirmation Modal */}
+      <PurgeWorkspaceModal />
+
+      {/* Phosphor Emerald Plasma Shockwave Host (Mounted at click coordinates on completion) */}
+      <PlasmaShockwaveHost shockwaves={shockwaves} onComplete={removeShockwave} />
+
+      {/* Neural Canvas (Tactical Quick-Note System) */}
+      <NeuralCanvasModal />
     </div>
   );
 }

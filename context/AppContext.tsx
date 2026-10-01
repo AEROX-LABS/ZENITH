@@ -1,7 +1,7 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import confetti from 'canvas-confetti';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { ShockwaveInstance } from '@/components/PlasmaShockwave';
 import { 
   Task, 
   Project, 
@@ -14,7 +14,9 @@ import {
   Workspace,
   WorkspaceMember,
   CustomTemplate,
-  LabelItem
+  LabelItem,
+  NeuralNote,
+  ArchivedNeuralNote,
 } from '@/types';
 import { 
   storage, 
@@ -22,6 +24,7 @@ import {
   TEAM_PROFILES,
   INITIAL_OPERATIVES,
   INITIAL_LABELS,
+  INITIAL_NOTES,
 } from '@/lib/storage';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { formatDate } from '@/lib/parser';
@@ -55,10 +58,16 @@ export interface AppContextType {
   setViewMode: (mode: ViewMode) => void;
   currentProject: Project | null;
   currentWorkspace: Workspace | null;
+  activeWorkspace: Workspace | null;
+  activeWorkspaceId: string;
   
   // Workspaces & Multiplayer Members
   workspaces: Workspace[];
   createWorkspace: (workspace: Partial<Workspace>) => Promise<Workspace>;
+  deleteWorkspace: (workspaceId: string) => Promise<boolean>;
+  purgeWorkspaceTarget: Workspace | null;
+  setPurgeWorkspaceTarget: (workspace: Workspace | null) => void;
+  openPurgeWorkspaceModal: (workspace: Workspace) => void;
   isCreateWorkspaceOpen: boolean;
   setIsCreateWorkspaceOpen: (open: boolean) => void;
   workspaceMembers: WorkspaceMember[];
@@ -71,6 +80,25 @@ export interface AppContextType {
   isGlobalRadarOpen: boolean;
   setIsGlobalRadarOpen: (open: boolean) => void;
   openGlobalRadar: () => void;
+
+  // Phosphor Emerald Plasma Shockwave Animation
+  shockwaves: ShockwaveInstance[];
+  triggerPlasmaShockwave: (x: number, y: number) => void;
+  removeShockwave: (id: string) => void;
+
+  // Neural Canvas (Tactical Quick-Note System)
+  notes: NeuralNote[];
+  archivedNotes: ArchivedNeuralNote[];
+  isNeuralCanvasOpen: boolean;
+  setIsNeuralCanvasOpen: (open: boolean) => void;
+  openNeuralCanvas: () => void;
+  closeNeuralCanvas: () => void;
+  createNote: (color?: string) => NeuralNote;
+  updateNote: (updatedNote: NeuralNote) => void;
+  reorderNotes: (newNotes: NeuralNote[]) => void;
+  archiveNote: (noteId: string) => Promise<void>;
+  purgeNote: (noteId: string) => Promise<void>;
+  restoreNote: (noteId: string) => Promise<void>;
 
   // Dynamic Entity Creation Protocol
   isEntityModalOpen: boolean;
@@ -172,6 +200,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMember[]>([]);
   const [operatives, setOperatives] = useState<UserProfile[]>([]);
   const [isGlobalRadarOpen, setIsGlobalRadarOpen] = useState(false);
+  const [purgeWorkspaceTarget, setPurgeWorkspaceTarget] = useState<Workspace | null>(null);
 
   // Dynamic Entity Creation Protocol Modal
   const [isEntityModalOpen, setIsEntityModalOpen] = useState(false);
@@ -196,6 +225,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const openOperatorProfile = useCallback(() => setIsOperatorProfileOpen(true), []);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isTutorialOpen, setIsTutorialOpen] = useState(false);
+
+  // Neural Canvas state
+  const [notes, setNotes] = useState<NeuralNote[]>(INITIAL_NOTES);
+  const [archivedNotes, setArchivedNotes] = useState<ArchivedNeuralNote[]>([]);
+  const [isNeuralCanvasOpen, setIsNeuralCanvasOpen] = useState(false);
+  const openNeuralCanvas = useCallback(() => setIsNeuralCanvasOpen(true), []);
+  const closeNeuralCanvas = useCallback(() => setIsNeuralCanvasOpen(false), []);
+  const noteDebounceTimers = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   // Toast Notifications
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -239,6 +276,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setIsOperatorProfileOpen(false);
     setIsAuthModalOpen(false);
     setIsTutorialOpen(false);
+    setIsNeuralCanvasOpen(false);
+    setNotes(INITIAL_NOTES);
+    setArchivedNotes([]);
 
     // 4. Aggressively route to /login
     if (typeof window !== 'undefined') {
@@ -348,6 +388,45 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setLabels(labelData as LabelItem[]);
       }
 
+      // 9. Fetch user notes (Neural Canvas)
+      const { data: noteData, error: noteError } = await supabase
+        .from('notes')
+        .select('*')
+        .eq('user_id', userId)
+        .order('order_index', { ascending: true });
+
+      if (!noteError && noteData && noteData.length > 0) {
+        const parsedNotes: NeuralNote[] = noteData.map(n => ({
+          id: n.id,
+          user_id: n.user_id,
+          color: n.color || '#00E0FF',
+          blocks: n.content_json?.blocks || [],
+          order_index: n.order_index ?? 0,
+          created_at: n.created_at,
+        }));
+        setNotes(parsedNotes);
+      }
+
+      // 10. Fetch user archived notes
+      const { data: archData, error: archError } = await supabase
+        .from('archived_notes')
+        .select('*')
+        .eq('user_id', userId)
+        .order('archived_at', { ascending: false });
+
+      if (!archError && archData) {
+        const parsedArch: ArchivedNeuralNote[] = archData.map(n => ({
+          id: n.id,
+          user_id: n.user_id,
+          color: n.color || '#00E0FF',
+          blocks: n.content_json?.blocks || [],
+          order_index: n.order_index ?? 0,
+          archived_at: n.archived_at || n.created_at,
+          created_at: n.created_at,
+        }));
+        setArchivedNotes(parsedArch);
+      }
+
       // Sync active user to profiles table for networking discovery
       const stored = storage.getUser();
       if (stored) {
@@ -422,6 +501,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
             const storedLabels = storage.getLabels();
             if (storedLabels && storedLabels.length > 0) setLabels(storedLabels);
+
+            const storedNotes = storage.getNotes();
+            if (storedNotes && storedNotes.length > 0) setNotes(storedNotes);
+
+            const storedArch = storage.getArchivedNotes();
+            if (storedArch && storedArch.length > 0) setArchivedNotes(storedArch);
 
             const storedOperatives = storage.getOperatives();
             if (storedOperatives && storedOperatives.length > 0) {
@@ -544,12 +629,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     storage.setLabels(labels);
   }, [labels, isHydrated, user]);
 
-  // Keyboard shortcut listener: Cmd/Ctrl + K opens Quick Add
+  useEffect(() => {
+    if (!isHydrated) return;
+    storage.setNotes(notes);
+  }, [notes, isHydrated]);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+    storage.setArchivedNotes(archivedNotes);
+  }, [archivedNotes, isHydrated]);
+
+  // Keyboard shortcut listener: Cmd/Ctrl + K opens Quick Add, Cmd/Ctrl + J opens Neural Canvas
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setIsQuickAddOpen(prev => !prev);
+      }
+      if ((e.metaKey || e.ctrlKey) && (e.key.toLowerCase() === 'j' || e.key.toLowerCase() === 'e')) {
+        e.preventDefault();
+        setIsNeuralCanvasOpen(prev => !prev);
       }
       if (e.key === 'Escape') {
         setIsQuickAddOpen(false);
@@ -559,6 +658,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setIsTutorialOpen(false);
         setIsGlobalRadarOpen(false);
         setIsEntityModalOpen(false);
+        setIsNeuralCanvasOpen(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -685,21 +785,211 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user?.id]);
 
-  // Helper: Trigger Confetti Explosion
-  const fireConfetti = useCallback(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      confetti({
-        particleCount: 90,
-        spread: 80,
-        origin: { y: 0.65 },
-        colors: ['#00f0ff', '#ff0055', '#a855f7', '#f59e0b', '#10b981'],
-        disableForReducedMotion: true,
-      });
-    } catch {
-      // Ignore if confetti is not available
-    }
+  // Phosphor Emerald Plasma Shockwave state
+  const [shockwaves, setShockwaves] = useState<ShockwaveInstance[]>([]);
+
+  const triggerPlasmaShockwave = useCallback((x: number, y: number) => {
+    const id = `${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    setShockwaves(prev => [...prev, { id, x, y }]);
   }, []);
+
+  const removeShockwave = useCallback((id: string) => {
+    setShockwaves(prev => prev.filter(sw => sw.id !== id));
+  }, []);
+
+  // Neural Canvas Actions
+  const createNote = useCallback((color = '#00E0FF') => {
+    const newNote: NeuralNote = {
+      id: `note_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      user_id: user?.id || null,
+      color,
+      order_index: 0,
+      blocks: [
+        {
+          id: `blk_${Date.now()}_1`,
+          type: 'h1',
+          text: 'TACTICAL THOUGHT CLUSTER',
+          depth: 0,
+        },
+        {
+          id: `blk_${Date.now()}_2`,
+          type: 'bullet',
+          text: 'Define neural telemetry parameters and execution vectors...',
+          depth: 1,
+        },
+      ],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    setNotes(prev => {
+      const updated = [newNote, ...prev.map((n, i) => ({ ...n, order_index: i + 1 }))];
+      storage.setNotes(updated);
+      return updated;
+    });
+
+    if (isSupabaseConfigured && user?.id) {
+      supabase.from('notes').insert([{
+        id: newNote.id,
+        user_id: user.id,
+        content_json: { blocks: newNote.blocks },
+        color: newNote.color,
+        order_index: 0,
+      }]).then(({ error }) => {
+        if (error) console.warn('[SUPABASE_INSERT_NOTE_ERR]', error);
+      });
+    }
+
+    return newNote;
+  }, [user?.id]);
+
+  const updateNote = useCallback((updatedNote: NeuralNote) => {
+    setNotes(prev => {
+      const updated = prev.map(n => n.id === updatedNote.id ? updatedNote : n);
+      storage.setNotes(updated);
+      return updated;
+    });
+
+    // Debounce Supabase background sync by 500ms
+    if (noteDebounceTimers.current.has(updatedNote.id)) {
+      clearTimeout(noteDebounceTimers.current.get(updatedNote.id)!);
+    }
+
+    const timer = setTimeout(async () => {
+      noteDebounceTimers.current.delete(updatedNote.id);
+      if (!isSupabaseConfigured || !user?.id) return;
+
+      try {
+        await supabase.from('notes').upsert([{
+          id: updatedNote.id,
+          user_id: user.id,
+          content_json: { blocks: updatedNote.blocks },
+          color: updatedNote.color,
+          order_index: updatedNote.order_index,
+        }]);
+      } catch (err) {
+        console.warn('[SUPABASE_NOTE_AUTOSAVE_ERR]', err);
+      }
+    }, 500);
+
+    noteDebounceTimers.current.set(updatedNote.id, timer);
+  }, [user?.id]);
+
+  const reorderNotes = useCallback((newNotes: NeuralNote[]) => {
+    const indexed = newNotes.map((note, idx) => ({ ...note, order_index: idx }));
+    setNotes(indexed);
+    storage.setNotes(indexed);
+
+    if (isSupabaseConfigured && user?.id) {
+      indexed.forEach(n => {
+        supabase.from('notes').update({ order_index: n.order_index }).eq('id', n.id).then();
+      });
+    }
+  }, [user?.id]);
+
+  const archiveNote = useCallback(async (noteId: string) => {
+    const note = notes.find(n => n.id === noteId);
+    if (!note) return;
+
+    const archivedItem: ArchivedNeuralNote = {
+      ...note,
+      archived_at: new Date().toISOString(),
+    };
+
+    setNotes(prev => {
+      const updated = prev.filter(n => n.id !== noteId);
+      storage.setNotes(updated);
+      return updated;
+    });
+
+    setArchivedNotes(prev => {
+      const updated = [archivedItem, ...prev];
+      storage.setArchivedNotes(updated);
+      return updated;
+    });
+
+    if (isSupabaseConfigured && user?.id) {
+      try {
+        await supabase.from('notes').delete().eq('id', noteId);
+        await supabase.from('archived_notes').insert([{
+          id: archivedItem.id,
+          user_id: user.id,
+          content_json: { blocks: archivedItem.blocks },
+          color: archivedItem.color,
+          order_index: archivedItem.order_index,
+          archived_at: archivedItem.archived_at,
+          created_at: archivedItem.created_at || new Date().toISOString(),
+        }]);
+      } catch (err) {
+        console.warn('[SUPABASE_ARCHIVE_NOTE_ERR]', err);
+      }
+    }
+  }, [notes, user?.id]);
+
+  const purgeNote = useCallback(async (noteId: string) => {
+    setNotes(prev => {
+      const updated = prev.filter(n => n.id !== noteId);
+      storage.setNotes(updated);
+      return updated;
+    });
+
+    setArchivedNotes(prev => {
+      const updated = prev.filter(n => n.id !== noteId);
+      storage.setArchivedNotes(updated);
+      return updated;
+    });
+
+    if (isSupabaseConfigured && user?.id) {
+      try {
+        await supabase.from('notes').delete().eq('id', noteId);
+        await supabase.from('archived_notes').delete().eq('id', noteId);
+      } catch (err) {
+        console.warn('[SUPABASE_PURGE_NOTE_ERR]', err);
+      }
+    }
+  }, [user?.id]);
+
+  const restoreNote = useCallback(async (noteId: string) => {
+    const noteToRestore = archivedNotes.find(n => n.id === noteId);
+    if (!noteToRestore) return;
+
+    const restoredNote: NeuralNote = {
+      id: noteToRestore.id,
+      user_id: noteToRestore.user_id,
+      color: noteToRestore.color,
+      blocks: noteToRestore.blocks,
+      order_index: 0,
+      created_at: noteToRestore.created_at,
+      updated_at: new Date().toISOString(),
+    };
+
+    setArchivedNotes(prev => {
+      const updated = prev.filter(n => n.id !== noteId);
+      storage.setArchivedNotes(updated);
+      return updated;
+    });
+
+    setNotes(prev => {
+      const updated = [restoredNote, ...prev];
+      storage.setNotes(updated);
+      return updated;
+    });
+
+    if (isSupabaseConfigured && user?.id) {
+      try {
+        await supabase.from('archived_notes').delete().eq('id', noteId);
+        await supabase.from('notes').insert([{
+          id: restoredNote.id,
+          user_id: user.id,
+          content_json: { blocks: restoredNote.blocks },
+          color: restoredNote.color,
+          order_index: 0,
+        }]);
+      } catch (err) {
+        console.warn('[SUPABASE_RESTORE_NOTE_ERR]', err);
+      }
+    }
+  }, [archivedNotes, user?.id]);
 
   // Helper: Update Karma on completion
   const recordKarmaDelta = useCallback((isCompleting: boolean) => {
@@ -779,6 +1069,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return workspaces.find(w => w.id === activeView) || null;
   }, [workspaces, activeView]);
 
+  // Active workspace (resolves to activeView if workspace, otherwise preferred personal or first workspace)
+  const activeWorkspace = useMemo(() => {
+    const fromView = workspaces.find(w => w.id === activeView);
+    if (fromView) return fromView;
+    return workspaces.find(w => w.type === 'personal') || workspaces[0] || null;
+  }, [workspaces, activeView]);
+
+  const activeWorkspaceId = activeWorkspace?.id || '';
+
   // Dynamic Entity: Create Label
   const createLabel = useCallback(async (labelData: Partial<LabelItem>): Promise<LabelItem> => {
     const activeUserId = user?.id || null;
@@ -796,7 +1095,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return updated;
     });
 
-    fireConfetti();
     showToast(`[SYS_ENTITY] LABEL "${newLabel.name}" COMMITTED TO KERNEL!`, 'success');
 
     if (isSupabaseConfigured) {
@@ -814,7 +1112,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     return newLabel;
-  }, [user?.id, fireConfetti, showToast]);
+  }, [user?.id, showToast]);
 
   const deleteLabel = useCallback(async (labelId: string) => {
     const activeUserId = user?.id || null;
@@ -853,7 +1151,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
     setProfiles(prev => [...prev, newOperative]);
 
-    fireConfetti();
     showToast(`[SYS_ENTITY] ASSIGNEE "${newOperative.name.toUpperCase()}" REGISTERED!`, 'success');
 
     if (isSupabaseConfigured) {
@@ -872,7 +1169,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     return newOperative;
-  }, [fireConfetti, showToast]);
+  }, [showToast]);
 
   // Actions with strict RLS user_id enforcement
   const createWorkspace = useCallback(async (workspaceData: Partial<Workspace>): Promise<Workspace> => {
@@ -907,6 +1204,85 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     return newWs;
   }, [user?.id]);
+
+  const openPurgeWorkspaceModal = useCallback((workspace: Workspace) => {
+    setPurgeWorkspaceTarget(workspace);
+  }, []);
+
+  const deleteWorkspace = useCallback(async (workspaceId: string): Promise<boolean> => {
+    const targetWs = workspaces.find(w => w.id === workspaceId);
+    if (!targetWs) return false;
+
+    // Determine fallback workspace: preferred personal workspace or first remaining
+    const remainingWorkspaces = workspaces.filter(w => w.id !== workspaceId);
+    let fallbackWs = remainingWorkspaces.find(w => w.type === 'personal') || remainingWorkspaces[0] || null;
+
+    // Safety fallback: if all workspaces were purged, instantiate a default personal workspace
+    if (!fallbackWs) {
+      fallbackWs = {
+        id: crypto.randomUUID(),
+        user_id: user?.id || null,
+        name: 'Personal Space',
+        type: 'personal',
+        color: '#00F5D4',
+        created_at: new Date().toISOString(),
+      };
+      remainingWorkspaces.push(fallbackWs);
+    }
+
+    // 1. Update workspaces list immediately
+    setWorkspaces(remainingWorkspaces);
+    storage.setWorkspaces(remainingWorkspaces);
+
+    // 2. Wipe associated tasks from client state
+    setTasks(prev => {
+      const updated = prev.filter(t => t.workspace_id !== workspaceId);
+      storage.setTasks(updated);
+      return updated;
+    });
+
+    // 3. Wipe associated projects from client state if they were tied to workspace
+    setProjects(prev => {
+      const updated = prev.filter(p => (p as unknown as { workspace_id?: string }).workspace_id !== workspaceId);
+      storage.setProjects(updated);
+      return updated;
+    });
+
+    // 4. Wipe associated labels from client state if tied to workspace
+    setLabels(prev => {
+      const updated = prev.filter(l => (l as unknown as { workspace_id?: string }).workspace_id !== workspaceId);
+      storage.setLabels(updated);
+      return updated;
+    });
+
+    // 5. Wipe associated workspace members
+    setWorkspaceMembers(prev => prev.filter(m => m.workspace_id !== workspaceId));
+
+    // 5. Automatic state fallback: switch activeView to fallback workspace
+    if (activeView === workspaceId || currentWorkspace?.id === workspaceId) {
+      setActiveView(fallbackWs.id);
+      if (typeof window !== 'undefined') {
+        window.history.pushState(null, '', `/workspace/${fallbackWs.id}`);
+      }
+    }
+
+    setPurgeWorkspaceTarget(null);
+    showToast(`Workspace "${targetWs.name}" permanently purged.`, 'info');
+
+    // 6. Supabase mutation execution
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase.from('workspaces').delete().eq('id', workspaceId);
+        if (error) {
+          console.warn('Supabase workspace delete error:', error.message);
+        }
+      } catch (err) {
+        console.warn('Supabase workspace delete caught:', err);
+      }
+    }
+
+    return true;
+  }, [workspaces, user?.id, activeView, currentWorkspace?.id, setActiveView, showToast]);
 
   // Active Workspace Members (strictly real members of current workspace)
   const activeWorkspaceMembers = useMemo(() => {
@@ -962,7 +1338,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
 
     setWorkspaceMembers(prev => [...prev, newMember]);
-    fireConfetti();
     showToast(`[SYS_LINK] ${operativeProfile?.name?.toUpperCase() || 'OPERATIVE'} GRANTED WORKSPACE ACCESS`, 'success');
 
     if (isSupabaseConfigured) {
@@ -980,7 +1355,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     return true;
-  }, [currentWorkspace, workspaces, workspaceMembers, operatives, profiles, showToast, fireConfetti]);
+  }, [currentWorkspace, workspaces, workspaceMembers, operatives, profiles, showToast]);
 
   // Multiplayer: Share System Blueprint with Operative
   const shareSystemWithOperative = useCallback(async (operativeId: string, templateId?: string): Promise<boolean> => {
@@ -1011,7 +1386,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       created_at: new Date().toISOString(),
     };
 
-    fireConfetti();
     showToast(`[SYS_TRANSMIT] SYSTEM "${templateToShare.name}" TRANSMITTED TO ${targetOperative.name.toUpperCase()}!`, 'success');
 
     if (isSupabaseConfigured) {
@@ -1023,7 +1397,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     return true;
-  }, [operatives, profiles, customTemplates, showToast, fireConfetti]);
+  }, [operatives, profiles, customTemplates, showToast]);
 
   const addTask = useCallback(async (taskData: Partial<Task>): Promise<Task> => {
     const activeUserId = user?.id || null;
@@ -1094,7 +1468,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (task.id === taskId) {
           const nextCompleted = !task.completed;
           if (nextCompleted) {
-            fireConfetti();
             recordKarmaDelta(true);
           } else {
             recordKarmaDelta(false);
@@ -1120,7 +1493,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return task;
       });
     });
-  }, [fireConfetti, recordKarmaDelta, user?.id]);
+  }, [recordKarmaDelta, user?.id]);
 
   const deleteTask = useCallback((taskId: string) => {
     const activeUserId = user?.id || null;
@@ -1175,7 +1548,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (task.id === taskId) {
         const isCompleting = targetCompleted !== undefined ? targetCompleted : task.completed;
         if (isCompleting && !task.completed) {
-          fireConfetti();
           recordKarmaDelta(true);
         } else if (!isCompleting && task.completed) {
           recordKarmaDelta(false);
@@ -1202,7 +1574,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       return task;
     }));
-  }, [fireConfetti, recordKarmaDelta, user?.id]);
+  }, [recordKarmaDelta, user?.id]);
 
   const addSubtask = useCallback((parentId: string, title: string, priority: Priority = 'p4'): Task => {
     const activeUserId = user?.id || null;
@@ -1487,7 +1859,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setTasks(prev => [...newTasks, ...prev]);
     setActiveView(newProjId);
     setIsTemplateModalOpen(false);
-    fireConfetti();
     showToast(`System "${tmpl.name}" deployed! Created ${newSections.length} sections and ${newTasks.length} tasks.`, 'success');
 
     // 4. Batch-insert into Supabase
@@ -1504,7 +1875,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         console.warn('Supabase batch insert error', e);
       }
     }
-  }, [currentWorkspace, workspaces, user?.id, fireConfetti, showToast, setActiveView]);
+  }, [currentWorkspace, workspaces, user?.id, showToast, setActiveView]);
 
   // Backward compatibility alias for applyTemplate
   const applyTemplate = useCallback((templateId: string) => {
@@ -1567,8 +1938,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setViewMode,
         currentProject,
         currentWorkspace,
+        activeWorkspace,
+        activeWorkspaceId,
         workspaces,
         createWorkspace,
+        deleteWorkspace,
+        purgeWorkspaceTarget,
+        setPurgeWorkspaceTarget,
+        openPurgeWorkspaceModal,
         isCreateWorkspaceOpen,
         setIsCreateWorkspaceOpen,
         workspaceMembers,
@@ -1579,6 +1956,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         isGlobalRadarOpen,
         setIsGlobalRadarOpen,
         openGlobalRadar,
+        shockwaves,
+        triggerPlasmaShockwave,
+        removeShockwave,
+        notes,
+        archivedNotes,
+        isNeuralCanvasOpen,
+        setIsNeuralCanvasOpen,
+        openNeuralCanvas,
+        closeNeuralCanvas,
+        createNote,
+        updateNote,
+        reorderNotes,
+        archiveNote,
+        purgeNote,
+        restoreNote,
         isEntityModalOpen,
         setIsEntityModalOpen,
         entityModalTab,

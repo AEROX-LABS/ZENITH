@@ -136,3 +136,27 @@ export interface LabelItem {
   color: string;
   created_at?: string;
 }
+
+export type NoteBlockType = 'h1' | 'h2' | 'bullet' | 'text';
+
+export interface NoteBlock {
+  id: string;
+  type: NoteBlockType;
+  text: string;
+  depth: number; // 0 for H1/H2, 1 for sub-point, 2 for nested sub-point, etc.
+}
+
+export interface NeuralNote {
+  id: string;
+  user_id?: string | null;
+  color: string; // Electric Cyan #00E0FF, Cyber Magenta #FF006E, Phosphor Emerald #00F5D4, etc.
+  blocks: NoteBlock[];
+  order_index: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ArchivedNeuralNote extends NeuralNote {
+  archived_at: string;
+}
+

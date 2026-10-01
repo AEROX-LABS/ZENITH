@@ -22,6 +22,10 @@ export function useAudio() {
     soundEngine.playThud(volume);
   }, []);
 
+  const playPlasmaBurst = useCallback((volume?: number) => {
+    soundEngine.playPlasmaBurst(volume);
+  }, []);
+
   const toggleMute = useCallback(() => {
     const next = !soundEngine.getMuted();
     soundEngine.setMuted(next);
@@ -35,6 +39,7 @@ export function useAudio() {
     playTick,
     playClack,
     playThud,
+    playPlasmaBurst,
     isMuted,
     toggleMute,
   };

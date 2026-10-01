@@ -39,6 +39,8 @@ function KanbanCard({
   const [pointerPos, setPointerPos] = useState({ x: -500, y: -500 });
   const [isHovered, setIsHovered] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
+  const { triggerPlasmaShockwave } = useApp();
+  const { playPlasmaBurst, playClack } = useAudio();
 
   const badge = PRIORITY_BADGES[task.priority] || PRIORITY_BADGES.p4;
   const assignee = profiles.find(p => p.id === task.assignee_id);
@@ -101,6 +103,15 @@ function KanbanCard({
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
+                  if (!task.completed) {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const x = rect.left + rect.width / 2;
+                    const y = rect.top + rect.height / 2;
+                    playPlasmaBurst();
+                    triggerPlasmaShockwave(x, y);
+                  } else {
+                    playClack();
+                  }
                   toggleTask(task.id);
                 }}
                 className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${

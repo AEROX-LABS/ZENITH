@@ -15,6 +15,7 @@ import {
 import { useApp } from '@/context/AppContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { INITIAL_USER } from '@/lib/storage';
+import { getURL } from '@/lib/url';
 
 export function MagicLinkAuthView({ onSuccess }: { onSuccess?: () => void }) {
   const { setUser, setSessionState } = useApp();
@@ -69,15 +70,11 @@ export function MagicLinkAuthView({ onSuccess }: { onSuccess?: () => void }) {
         return;
       }
 
-      // Supabase Magic Link transmission
-      const redirectUrl = typeof window !== 'undefined'
-        ? `${window.location.origin}/auth/callback`
-        : undefined;
-
+      // Supabase Magic Link transmission with dynamic redirect URL
       const { error } = await supabase.auth.signInWithOtp({
         email: cleanEmail,
         options: {
-          emailRedirectTo: redirectUrl,
+          emailRedirectTo: `${getURL()}/auth/callback`,
           shouldCreateUser: true,
         },
       });

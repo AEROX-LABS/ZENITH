@@ -380,7 +380,7 @@ export function TutorialModal() {
       content: (
         <div className="space-y-4">
           <p className="text-sm text-zinc-300 leading-relaxed">
-            Execution is rewarded. Checking off any task or subtask triggers a particle burst of celebratory confetti and awards <span className="text-cyan-400 font-bold">+10 Karma points</span> to your profile.
+            Execution is rewarded. Checking off any task triggers a Phosphor Emerald plasma shockwave burst with chromatic glitch disintegration as tasks glide into place.
           </p>
 
           <div className="p-3.5 rounded-xl bg-black/50 border border-amber-500/30 flex items-center justify-between gap-3">

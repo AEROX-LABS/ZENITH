@@ -42,11 +42,25 @@ function TaskDrawerContent({ task }: { task: Task }) {
     profiles,
     activeWorkspaceMembers,
     openEntityModal,
-    labels
+    labels,
+    triggerPlasmaShockwave,
   } = useApp();
 
-  const { playTick, playClack } = useAudio();
+  const { playTick, playClack, playPlasmaBurst } = useAudio();
   const [isAssigneeDropdownOpen, setIsAssigneeDropdownOpen] = useState(false);
+
+  const handleToggle = (e: React.MouseEvent, targetTask: Task) => {
+    if (!targetTask.completed) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = rect.left + rect.width / 2;
+      const y = rect.top + rect.height / 2;
+      playPlasmaBurst();
+      triggerPlasmaShockwave(x, y);
+    } else {
+      playClack();
+    }
+    toggleTask(targetTask.id);
+  };
 
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description || '');
@@ -123,13 +137,13 @@ function TaskDrawerContent({ task }: { task: Task }) {
               {/* Checkbox Toggle */}
               <button
                 type="button"
-                onClick={() => toggleTask(task.id)}
+                onClick={(e) => handleToggle(e, task)}
                 className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
                   task.completed
                     ? 'bg-cyan-400 border-cyan-400 text-zinc-950 shadow-[0_0_12px_rgba(0,240,255,0.6)]'
                     : 'border-zinc-600 hover:border-cyan-400'
                 }`}
-                title={task.completed ? 'Mark incomplete' : 'Mark complete (+10 Karma)'}
+                title={task.completed ? 'Mark incomplete' : 'Mark complete'}
               >
                 {task.completed && <Check className="w-3.5 h-3.5 stroke-[3]" />}
               </button>
@@ -513,7 +527,7 @@ function TaskDrawerContent({ task }: { task: Task }) {
                     <div className="flex items-center gap-2 flex-1 min-w-0">
                       <button
                         type="button"
-                        onClick={() => toggleTask(sub.id)}
+                        onClick={(e) => handleToggle(e, sub)}
                         className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 transition-colors ${
                           sub.completed ? 'bg-cyan-400 border-cyan-400 text-zinc-950' : 'border-zinc-600 hover:border-cyan-400'
                         }`}

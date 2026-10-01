@@ -15,7 +15,39 @@ import {
 import type { DraggableProvidedDragHandleProps } from '@hello-pangea/dnd';
 import { Task, Priority } from '@/types';
 import { useApp } from '@/context/AppContext';
+import { useAudio } from '@/hooks/useAudio';
 import { ReticleHUD } from '@/components/DynamicEntityModal';
+import { motion, AnimatePresence, type TargetAndTransition } from 'framer-motion';
+
+const SUBTASK_DISINTEGRATION_EXIT: TargetAndTransition = {
+  scale: [1, 1.02, 1.02, 0.98, 0.9],
+  backgroundColor: [
+    'rgba(13, 14, 18, 0.8)',
+    'rgba(0, 245, 212, 0.2)',
+    'rgba(0, 245, 212, 0.2)',
+    'rgba(0, 245, 212, 0)',
+    'rgba(0, 245, 212, 0)',
+  ],
+  filter: [
+    'drop-shadow(0px 0px 0px transparent)',
+    'drop-shadow(2px 0px 0px red) drop-shadow(-2px 0px 0px cyan)',
+    'drop-shadow(2px 0px 0px red) drop-shadow(-2px 0px 0px cyan)',
+    'drop-shadow(0px 0px 0px transparent)',
+    'drop-shadow(0px 0px 0px transparent)',
+  ],
+  opacity: [1, 1, 0.8, 0.2, 0],
+  height: 0,
+  paddingTop: 0,
+  paddingBottom: 0,
+  marginTop: 0,
+  marginBottom: 0,
+  overflow: 'hidden',
+  transition: {
+    duration: 0.42,
+    times: [0, 0.2, 0.45, 0.75, 1],
+    ease: 'easeInOut',
+  },
+};
 
 interface TaskItemProps {
   task: Task;
@@ -59,7 +91,8 @@ export function TaskItem({
   _isLastSubtask,
   dragHandleProps,
 }: TaskItemProps & { _isLastSubtask?: boolean }) {
-  const { toggleTask, setSelectedTaskId, addSubtask, projects, profiles, workspaces, activeView, setActiveView } = useApp();
+  const { toggleTask, setSelectedTaskId, addSubtask, projects, profiles, workspaces, activeView, setActiveView, triggerPlasmaShockwave } = useApp();
+  const { playPlasmaBurst, playClack } = useAudio();
   const [isExpanded, setIsExpanded] = useState(true);
   const [isAddingSubtask, setIsAddingSubtask] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
@@ -93,6 +126,15 @@ export function TaskItem({
 
   const handleCheckboxClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!task.completed) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = rect.left + rect.width / 2;
+      const y = rect.top + rect.height / 2;
+      playPlasmaBurst();
+      triggerPlasmaShockwave(x, y);
+    } else {
+      playClack();
+    }
     toggleTask(task.id);
   };
 
@@ -177,7 +219,7 @@ export function TaskItem({
                 ? 'bg-[#00f0ff] border-[#00f0ff] text-zinc-950 shadow-[0_0_10px_rgba(0,240,255,0.6)]'
                 : `${pStyle.border} ${pStyle.bg} hover:scale-110`
             }`}
-            title={task.completed ? 'Mark incomplete' : 'Mark complete (+10 Karma)'}
+            title={task.completed ? 'Mark incomplete' : 'Mark complete'}
           >
             <ReticleHUD active={checkboxHovered && !task.completed} color={activeColor} offset={-3} />
             {task.completed ? (
@@ -341,14 +383,26 @@ export function TaskItem({
           {/* Vertical Branch Guide Line */}
           <div className="absolute left-3.5 top-0 bottom-4 w-0.5 bg-gradient-to-b from-cyan-500/30 via-cyan-500/15 to-transparent pointer-events-none" />
 
-          {subtasks.map((sub, idx) => (
-            <TaskItem
-              key={sub.id}
-              task={sub}
-              isSubtask={true}
-              isLastSubtask={idx === subtasks.length - 1}
-            />
-          ))}
+          <AnimatePresence mode="popLayout" initial={false}>
+            {subtasks.map((sub, idx) => (
+              <motion.div
+                key={sub.id}
+                layout
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={SUBTASK_DISINTEGRATION_EXIT}
+                transition={{
+                  layout: { duration: 0.3, ease: [0.16, 1, 0.3, 1] },
+                }}
+              >
+                <TaskItem
+                  task={sub}
+                  isSubtask={true}
+                  isLastSubtask={idx === subtasks.length - 1}
+                />
+              </motion.div>
+            ))}
+          </AnimatePresence>
         </div>
       )}
 

@@ -164,6 +164,75 @@ class SoundEngine {
       // Audio fail-safe
     }
   }
+
+  /**
+   * Satisfying, high-tech "plasma burst" / "mechanical seal" sound effect for task completion.
+   * Dual-stage synthesis: resonant laser/plasma frequency drop + heavy sub-transient thump + metallic seal snap.
+   */
+  public playPlasmaBurst(volume = 0.35) {
+    if (this.isMuted) return;
+    try {
+      const ctx = this.getContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+
+      // 1. Plasma discharge downward frequency sweep (laser zap)
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const filter = ctx.createBiquadFilter();
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(1400, now);
+      osc.frequency.exponentialRampToValueAtTime(120, now + 0.09);
+
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(1600, now);
+      filter.frequency.exponentialRampToValueAtTime(280, now + 0.09);
+      filter.Q.setValueAtTime(4.0, now);
+
+      gain.gain.setValueAtTime(volume * 0.75, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.1);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.11);
+
+      // 2. Mechanical seal transient (metallic click)
+      const snap = ctx.createOscillator();
+      const snapGain = ctx.createGain();
+      snap.type = 'sine';
+      snap.frequency.setValueAtTime(2400, now);
+      snap.frequency.exponentialRampToValueAtTime(400, now + 0.015);
+
+      snapGain.gain.setValueAtTime(volume * 0.8, now);
+      snapGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.016);
+
+      snap.connect(snapGain);
+      snapGain.connect(ctx.destination);
+      snap.start(now);
+      snap.stop(now + 0.018);
+
+      // 3. Sub-bass hydraulic resonant thump (weight & power)
+      const sub = ctx.createOscillator();
+      const subGain = ctx.createGain();
+      sub.type = 'triangle';
+      sub.frequency.setValueAtTime(160, now + 0.01);
+      sub.frequency.exponentialRampToValueAtTime(35, now + 0.16);
+
+      subGain.gain.setValueAtTime(0, now);
+      subGain.gain.setValueAtTime(volume * 0.9, now + 0.01);
+      subGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+
+      sub.connect(subGain);
+      subGain.connect(ctx.destination);
+      sub.start(now + 0.01);
+      sub.stop(now + 0.19);
+    } catch {
+      // Audio fail-safe
+    }
+  }
 }
 
 export const soundEngine = new SoundEngine();

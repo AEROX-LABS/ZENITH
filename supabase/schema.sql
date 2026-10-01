@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS public.workspaces (
 CREATE TABLE IF NOT EXISTS public.projects (
     id TEXT PRIMARY KEY,
     user_id TEXT, -- references auth.users(id)
+    workspace_id TEXT REFERENCES public.workspaces(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     color TEXT NOT NULL DEFAULT '#00f0ff',
     view_mode TEXT NOT NULL DEFAULT 'list' CHECK (view_mode IN ('list', 'board', 'calendar')),
@@ -40,8 +41,8 @@ CREATE TABLE IF NOT EXISTS public.sections (
 CREATE TABLE IF NOT EXISTS public.tasks (
     id TEXT PRIMARY KEY,
     user_id TEXT, -- references auth.users(id)
-    workspace_id TEXT REFERENCES public.workspaces(id) ON DELETE SET NULL,
-    project_id TEXT REFERENCES public.projects(id) ON DELETE SET NULL,
+    workspace_id TEXT REFERENCES public.workspaces(id) ON DELETE CASCADE,
+    project_id TEXT REFERENCES public.projects(id) ON DELETE CASCADE,
     section_id TEXT REFERENCES public.sections(id) ON DELETE SET NULL,
     title TEXT NOT NULL,
     description TEXT,
@@ -109,6 +110,7 @@ CREATE TABLE IF NOT EXISTS public.workspace_members (
 CREATE TABLE IF NOT EXISTS public.labels (
     id TEXT PRIMARY KEY,
     user_id TEXT, -- references auth.users(id)
+    workspace_id TEXT REFERENCES public.workspaces(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     color TEXT NOT NULL DEFAULT '#00f0ff',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
@@ -191,7 +193,41 @@ CREATE POLICY "Users can manage own labels"
     USING (auth.uid() IS NULL OR user_id = auth.uid()::text OR user_id IS NULL)
     WITH CHECK (auth.uid() IS NULL OR user_id = auth.uid()::text OR user_id IS NULL);
 
--- 13. Add tables to Supabase Realtime Publication
+-- 13. Notes Table (Neural Canvas)
+CREATE TABLE IF NOT EXISTS public.notes (
+    id TEXT PRIMARY KEY,
+    user_id TEXT, -- references auth.users(id)
+    content_json JSONB NOT NULL DEFAULT '{"blocks": []}'::jsonb,
+    color TEXT NOT NULL DEFAULT '#00E0FF',
+    order_index INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 14. Archived Notes Table
+CREATE TABLE IF NOT EXISTS public.archived_notes (
+    id TEXT PRIMARY KEY,
+    user_id TEXT, -- references auth.users(id)
+    content_json JSONB NOT NULL DEFAULT '{"blocks": []}'::jsonb,
+    color TEXT NOT NULL DEFAULT '#00E0FF',
+    order_index INTEGER NOT NULL DEFAULT 0,
+    archived_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE public.notes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.archived_notes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage own notes"
+    ON public.notes FOR ALL
+    USING (auth.uid() IS NULL OR user_id = auth.uid()::text OR user_id IS NULL)
+    WITH CHECK (auth.uid() IS NULL OR user_id = auth.uid()::text OR user_id IS NULL);
+
+CREATE POLICY "Users can manage own archived notes"
+    ON public.archived_notes FOR ALL
+    USING (auth.uid() IS NULL OR user_id = auth.uid()::text OR user_id IS NULL)
+    WITH CHECK (auth.uid() IS NULL OR user_id = auth.uid()::text OR user_id IS NULL);
+
+-- 15. Add tables to Supabase Realtime Publication
 ALTER PUBLICATION supabase_realtime ADD TABLE public.workspaces;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.projects;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.sections;
@@ -201,3 +237,6 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.custom_templates;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.profiles;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.workspace_members;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.labels;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.notes;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.archived_notes;
+
